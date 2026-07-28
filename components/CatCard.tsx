@@ -1,39 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db, type Cat } from "@/lib/db";
 import { Camera } from "lucide-react";
 
-interface CatCardProps {
-  cat: Cat;
+interface Cat {
+  id: string;
+  name: string;
+  photo_count: number;
+  thumb_blob_id: string;
 }
 
-export function CatCard({ cat }: CatCardProps) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadThumb();
-  }, [cat.thumbBlobId]);
-
-  async function loadThumb() {
-    try {
-      const photo = await db.photos.get(cat.thumbBlobId);
-      if (photo?.thumbBlob) {
-        setThumbUrl(URL.createObjectURL(photo.thumbBlob));
-      }
-    } catch {
-      // Blob not available
-    }
-  }
+export function CatCard({ cat }: { cat: Cat }) {
+  const thumbUrl = cat.thumb_blob_id
+    ? `/api/photos/${cat.thumb_blob_id}?thumb=1`
+    : null;
 
   return (
     <Link
       href={`/cat?id=${cat.id}`}
       className="card-pokedex group active:scale-[0.98] transition-transform"
     >
-      {/* Photo area */}
-      <div className="aspect-square bg-pokedex-gray-mid relative overflow-hidden">
+      <div className="aspect-square bg-catdex-input-bg relative overflow-hidden">
         {thumbUrl ? (
           <img
             src={thumbUrl}
@@ -43,16 +30,14 @@ export function CatCard({ cat }: CatCardProps) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Camera className="h-8 w-8 text-muted-foreground" />
+            <Camera className="h-8 w-8 text-catdex-text-muted" />
           </div>
         )}
       </div>
-
-      {/* Info */}
       <div className="p-2.5">
         <h3 className="font-semibold text-sm truncate">{cat.name}</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {cat.photoCount} foto{cat.photoCount !== 1 ? "s" : ""}
+        <p className="text-xs text-catdex-text-muted mt-0.5">
+          {cat.photo_count} foto{cat.photo_count !== 1 ? "s" : ""}
         </p>
       </div>
     </Link>

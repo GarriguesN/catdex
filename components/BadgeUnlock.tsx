@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ACHIEVEMENT_DEFS } from "@/lib/achievements";
+import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
+import { playBadgeSound } from "@/lib/sounds";
 
 interface BadgeUnlockProps {
   achievementIds: string[];
@@ -20,7 +21,7 @@ export function BadgeUnlock({ achievementIds, onClose }: BadgeUnlockProps) {
       // vibration not supported
     }
     // Sound
-    import("@/lib/sounds").then(({ playBadgeSound }) => playBadgeSound());
+    playBadgeSound();
     // Dynamic import confetti (small)
     import("canvas-confetti").then((confetti) => {
       confetti.default({

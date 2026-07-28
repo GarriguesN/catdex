@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, type Cat } from "@/lib/db";
+import { useSession } from "next-auth/react";
 import { CatCard } from "@/components/CatCard";
 import { FAB } from "@/components/FAB";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
-import { Search, ArrowUpDown } from "lucide-react";
+import { Search, ArrowUpDown, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
+
+interface Cat {
+  id: string;
+  name: string;
+  photo_count: number;
+  last_seen: number;
+  thumb_blob_id: string;
+  manually_named: number;
+}
 
 type SortMode = "recent" | "photos" | "alpha";
 
 export default function HomePage() {
+  const { data: session } = useSession();
   const [cats, setCats] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -21,8 +32,15 @@ export default function HomePage() {
   }, []);
 
   async function loadCats() {
-    const all = await db.cats.toArray();
-    setCats(all);
+    try {
+      const res = await fetch("/api/cats");
+      if (res.ok) {
+        const data = await res.json();
+        setCats(data);
+      }
+    } catch (err) {
+      console.error("Failed to load cats:", err);
+    }
     setLoading(false);
   }
 
@@ -30,12 +48,10 @@ export default function HomePage() {
     .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       switch (sort) {
-        case "recent":
-          return b.lastSeen - a.lastSeen;
-        case "photos":
-          return b.photoCount - a.photoCount;
-        case "alpha":
-          return a.name.localeCompare(b.name);
+        case "recent": return b.last_seen - a.last_seen;
+        case "photos": return b.photo_count - a.photo_count;
+        case "alpha": return a.name.localeCompare(b.name);
+        default: return 0;
       }
     });
 
@@ -49,7 +65,7 @@ export default function HomePage() {
     return (
       <div className="grid grid-cols-2 gap-3 pt-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="card-pokedex aspect-square animate-pulse bg-pokedex-gray-dark" />
+          <div key={i} className="card-pokedex aspect-square animate-pulse bg-catdex-input-bg" />
         ))}
       </div>
     );
@@ -58,18 +74,30 @@ export default function HomePage() {
   return (
     <>
       <header className="py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-pokedex-red">
-          🐱 CatDex
-        </h1>
-        <span className="text-sm text-muted-foreground">
-          {cats.length} gato{cats.length !== 1 ? "s" : ""}
-        </span>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-catdex-orange">
+            🐱 CatDex
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-catdex-text-muted">
+            {cats.length} gato{cats.length !== 1 ? "s" : ""}
+          </span>
+          {session?.user && (
+            <button
+              onClick={() => signOut()}
+              className="p-1.5 rounded-lg hover:bg-catdex-input-bg transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-4 w-4 text-catdex-text-muted" />
+            </button>
+          )}
+        </div>
       </header>
 
-      {/* Search + Sort bar */}
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-catdex-text-muted" />
           <input
             className="input-pokedex pl-8"
             placeholder="Buscar gato..."
@@ -86,10 +114,9 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* Grid or Empty */}
       {filtered.length === 0 ? (
         search ? (
-          <p className="text-center text-muted-foreground py-12">
+          <p className="text-center text-catdex-text-muted py-12">
             No hay gatos que coincidan con &ldquo;{search}&rdquo;
           </p>
         ) : (
