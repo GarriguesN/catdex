@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
-import { normalizePhoto } from "@/lib/image";
+import { normalizePhoto, blurScore, getImageData } from "@/lib/image";
 import { openCamera, captureFrame, isCameraAvailable } from "@/lib/camera";
 import { computeHashFromCanvas } from "@/lib/capture";
 import { generateCatName } from "@/lib/names";
@@ -113,7 +113,39 @@ export default function CapturePage() {
       img.src = URL.createObjectURL(blob);
       await new Promise((r) => (img.onload = r));
       previewImgRef.current = img;
-      const result = await classifyPhoto(img);
+      // 4. Blur check (Laplacian variance, <5ms, no ML)
+      const blurCanvas = document.createElement("canvas");
+      blurCanvas.width = img.width;
+      blurCanvas.height = img.height;
+      const blurCtx = blurCanvas.getContext("2d")!;
+      blurCtx.drawImage(img, 0, 0);
+      const imageData = getImageData(blurCanvas);
+      const blurVariance = blurScore(imageData);
+
+      // 4b. Fast path: if very blurry, skip MobileNet (save 200ms)
+      let result: ClassificationResult;
+      if (blurVariance < 50) {
+        // Synthetic blur result — no need to run MobileNet
+        result = {
+          isCat: true,
+          topClass: "unknown",
+          confidence: 0,
+          quality: "blurry" as const,
+          message: `¡Demasiado borroso! (nitidez: ${Math.round(blurVariance)}) ¿Repetimos?`,
+        };
+      } else {
+        // Sharp enough → run MobileNet classification
+        result = await classifyPhoto(img);
+
+        // If MobileNet says good but image is borderline blurry, downgrade
+        if (result.quality === "good" && blurVariance < 150) {
+          result = {
+            ...result,
+            quality: "low_confidence",
+            message: `Un poco movida… (nitidez: ${Math.round(blurVariance)}). ¿Repetir?`,
+          };
+        }
+      }
       setClassification(result);
 
       // 4b. Compute pHash from the loaded image

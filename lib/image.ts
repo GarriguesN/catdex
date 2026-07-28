@@ -71,3 +71,36 @@ export function getImageData(canvas: HTMLCanvasElement): ImageData {
   const ctx = canvas.getContext("2d")!;
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
+
+/**
+ * Laplacian variance blur detection — classic CV technique.
+ * Lower variance = blurrier image. No ML, runs in <5ms on a canvas.
+ *
+ * Threshold: ~100 (calibrate with real photos). <100 = blurry.
+ */
+export function blurScore(imageData: ImageData): number {
+  const { data, width, height } = imageData;
+  const gray = new Float32Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+  }
+  let sum = 0;
+  let sumSq = 0;
+  let count = 0;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      const lap =
+        gray[idx - 1] +
+        gray[idx + 1] +
+        gray[idx - width] +
+        gray[idx + width] -
+        4 * gray[idx];
+      sum += lap;
+      sumSq += lap * lap;
+      count++;
+    }
+  }
+  const mean = sum / count;
+  return sumSq / count - mean * mean; // variance: lower = blurrier
+}
