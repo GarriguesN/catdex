@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { db, type Cat } from "@/lib/db";
 import { CatCard } from "@/components/CatCard";
-import { FAB } from "@/components/FAB";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
 import { Search, ArrowUpDown } from "lucide-react";
@@ -103,7 +102,6 @@ export default function HomePage() {
         </div>
       )}
 
-      <FAB />
       <InstallBanner />
     </>
   );
