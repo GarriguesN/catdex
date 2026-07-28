@@ -7,6 +7,12 @@ import { CatAvatar } from "@/components/CatAvatar";
 import { ArrowLeft, MapPin, Camera, Edit3, Trash2, Share2 } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+const MiniMap = dynamic(() => import("@/components/MiniMap"), {
+  ssr: false,
+  loading: () => <div className="skeleton h-32 w-full rounded-lg" />,
+});
 
 function CatDetailInner() {
   const searchParams = useSearchParams();
@@ -160,19 +166,23 @@ function CatDetailInner() {
         </div>
       )}
 
-      {/* Location summary */}
+      {/* Location summary + mini-map */}
       {hasLocation && (
-        <div className="card-pokedex p-3 flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-pokedex-red" />
-          <span className="text-sm">
-            {photos.filter((p) => p.lat).length} ubicacion{photos.filter((p) => p.lat).length !== 1 ? "es" : ""} registrada{photos.filter((p) => p.lat).length !== 1 ? "s" : ""}
-          </span>
-          <Link
-            href={`/map?catId=${cat.id}`}
-            className="ml-auto text-xs text-pokedex-blue hover:underline"
-          >
-            Ver mapa
-          </Link>
+        <div className="card-pokedex p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-pokedex-red" />
+            <span className="text-sm">
+              {photos.filter((p) => p.lat).length} ubicacion{photos.filter((p) => p.lat).length !== 1 ? "es" : ""} registrada{photos.filter((p) => p.lat).length !== 1 ? "s" : ""}
+            </span>
+            <Link
+              href={`/map?catId=${cat.id}`}
+              className="ml-auto text-xs text-pokedex-blue hover:underline"
+            >
+              Ver mapa completo
+            </Link>
+          </div>
+          {/* Mini-map */}
+          <MiniMap catId={cat.id} />
         </div>
       )}
 
