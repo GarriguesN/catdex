@@ -19,13 +19,13 @@ export async function normalizePhoto(file: File): Promise<{
   const img = await loadImage(file);
   const canvas = document.createElement("canvas");
 
-  // Read EXIF orientation and apply transform
+  // EXIF orientation: browsers auto-correct orientation in <img> + drawImage()
+  // since ~2020. The dimensions may need swapping for rotated images (orient 5-8).
   const orientation = await parse(file, ["Orientation"]).catch(() => ({})) as any;
   const orient = orientation?.Orientation || 1;
+  const swapDimensions = orient >= 5 && orient <= 8;
 
   let { width, height } = img;
-  // Swap dimensions if rotated 90° or 270°
-  const swapDimensions = orient >= 5 && orient <= 8;
 
   // Resize to max 1920x1080 preserving aspect ratio
   const MAX_W = swapDimensions ? 1080 : 1920;
@@ -38,19 +38,7 @@ export async function normalizePhoto(file: File): Promise<{
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d")!;
-
-  // Apply EXIF orientation transform
-  ctx.save();
-  if (orient === 2) { ctx.translate(width, 0); ctx.scale(-1, 1); }
-  else if (orient === 3) { ctx.translate(width, height); ctx.rotate(Math.PI); }
-  else if (orient === 4) { ctx.translate(0, height); ctx.scale(1, -1); }
-  else if (orient === 5) { ctx.rotate(0.5 * Math.PI); ctx.scale(1, -1); }
-  else if (orient === 6) { ctx.rotate(0.5 * Math.PI); ctx.translate(0, -height); }
-  else if (orient === 7) { ctx.rotate(-0.5 * Math.PI); ctx.translate(-width, 0); ctx.scale(1, -1); }
-  else if (orient === 8) { ctx.rotate(-0.5 * Math.PI); ctx.translate(-width, height); }
-
   ctx.drawImage(img, 0, 0, width, height);
-  ctx.restore();
 
   // Try WebP first (~300KB), fallback JPEG if browser silently returns PNG
   let blob = await canvasToBlob(canvas, "image/webp", 0.8);

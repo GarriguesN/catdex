@@ -297,33 +297,6 @@ export default function CapturePage() {
         />
       )}
 
-      {screen === "matching" && (
-        <div className="fixed inset-0 z-50 bg-catdex-cream flex flex-col animate-pop-in">
-          <div className="p-4 border-b-2 border-catdex-border flex items-center gap-3">
-            <button onClick={resetCapture} className="btn-pokedex-secondary text-xs px-3 py-1.5">Cancelar</button>
-            <h2 className="text-lg font-bold flex-1">¿Es uno de estos?</h2>
-            <button onClick={() => saveCat(null)} className="btn-pokedex text-xs px-3 py-1.5">Nuevo gato</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {matchCandidates.map(c => (
-              <button
-                key={c.id}
-                onClick={() => saveCat(c.id)}
-                className="w-full card-pokedex p-3 flex items-center gap-3 text-left active:scale-[0.99]"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{c.name}</p>
-                  <p className="text-xs text-catdex-text-muted">{c.photoCount} fotos · {c.similarity.toFixed(0)}% match</p>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-catdex-orange/10 flex items-center justify-center text-sm font-bold text-catdex-orange">
-                  {c.similarity.toFixed(0)}%
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* CatPicker — always shown after classification, pHash-ordered */}
       {showPicker && (
         <CatPicker
