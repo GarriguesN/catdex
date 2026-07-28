@@ -12,6 +12,7 @@ import { getCurrentPosition, formatCoords } from "@/lib/geo";
 import { generateUUID } from "@/lib/utils";
 import { CatPicker } from "@/components/CatPicker";
 import { BadgeUnlock } from "@/components/BadgeUnlock";
+import { classifyPhoto, type ClassificationResult } from "@/lib/classifier";
 import { ArrowLeft, Camera, Upload, Zap } from "lucide-react";
 import Link from "next/link";
 
@@ -25,6 +26,8 @@ export default function CapturePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [newBadges, setNewBadges] = useState<string[] | null>(null);
+  const [classification, setClassification] = useState<ClassificationResult | null>(null);
+  const [showClassWarning, setShowClassWarning] = useState(false);
   const pendingDataRef = useRef<{
     blob: Blob;
     thumbBlob: Blob;
@@ -34,6 +37,7 @@ export default function CapturePage() {
     lat?: number;
     lng?: number;
   } | null>(null);
+  const previewImgRef = useRef<HTMLImageElement | null>(null);
 
   // ── Camera ──────────────────────────────────────────────
 
@@ -92,14 +96,7 @@ export default function CapturePage() {
       );
 
       // 2. Compute pHash (stored but NOT used for matching)
-      const img = new Image();
-      img.src = URL.createObjectURL(blob);
-      await new Promise((r) => (img.onload = r));
-      const c = document.createElement("canvas");
-      c.width = img.width;
-      c.height = img.height;
-      c.getContext("2d")!.drawImage(img, 0, 0);
-      const hash = await computeHashFromCanvas(c);
+      // We'll compute it after the image loads for classification
 
       // 3. GPS if available
       let lat: number | undefined;
@@ -111,7 +108,31 @@ export default function CapturePage() {
         lng = coords.lng;
       } catch { /* no GPS */ }
 
-      // 4. Store pending data, show manual picker
+      // 4. Classify: is this actually a cat? (quality gate)
+      const img = new Image();
+      img.src = URL.createObjectURL(blob);
+      await new Promise((r) => (img.onload = r));
+      previewImgRef.current = img;
+      const result = await classifyPhoto(img);
+      setClassification(result);
+
+      // 4b. Compute pHash from the loaded image
+      const hashCanvas = document.createElement("canvas");
+      hashCanvas.width = img.width;
+      hashCanvas.height = img.height;
+      hashCanvas.getContext("2d")!.drawImage(img, 0, 0);
+      const hash = await computeHashFromCanvas(hashCanvas);
+
+      // 4c. Store pending data BEFORE gate (so "Guardar igual" can access it)
+      pendingDataRef.current = { blob, thumbBlob, width, height, hash, lat, lng };
+
+      // 5. Gate: warn if not a cat or low quality
+      if (result.quality !== "good") {
+        setShowClassWarning(true);
+        return;
+      }
+
+      // 6. Store pending data, show manual picker
       pendingDataRef.current = { blob, thumbBlob, width, height, hash, lat, lng };
       setShowPicker(true);
     } catch (err) {
@@ -282,6 +303,46 @@ export default function CapturePage() {
         className="hidden"
         onChange={handleFileInput}
       />
+
+      {/* Classification warning */}
+      {showClassWarning && classification && (
+        <div className="fixed inset-0 z-50 bg-pokedex-black/95 flex flex-col items-center justify-center p-6 animate-pop-in">
+          <span className="text-5xl mb-4">
+            {classification.quality === "not_cat" ? "🧐" : "📸"}
+          </span>
+          <h2 className="text-lg font-bold mb-2 text-center">
+            {classification.quality === "not_cat"
+              ? "Esto no parece un gato"
+              : "Foto mejorable"}
+          </h2>
+          <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
+            {classification.message}
+          </p>
+          <div className="flex gap-3 w-full max-w-xs">
+            <button
+              onClick={() => {
+                setShowClassWarning(false);
+                setClassification(null);
+                setPreviewUrl(null);
+                pendingDataRef.current = null;
+                stopCamera();
+              }}
+              className="btn-pokedex flex-1"
+            >
+              Repetir foto
+            </button>
+            <button
+              onClick={() => {
+                setShowClassWarning(false);
+                setShowPicker(true);
+              }}
+              className="btn-pokedex-secondary flex-1"
+            >
+              Guardar igual
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Manual cat picker */}
       {showPicker && (
