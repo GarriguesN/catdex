@@ -46,7 +46,7 @@ function createCatIcon(thumbUrl: string | null): L.DivIcon {
     className: "cat-marker",
     html: `<div style="
       width:40px;height:40px;border-radius:50%;
-      border:2px solid #dc2626;overflow:hidden;
+      border:2px solid #FF8A26;overflow:hidden;
       background:#1a1a1a;
       ${thumbUrl ? `background-image:url(${thumbUrl});background-size:cover;background-position:center;` : ""}
       display:flex;align-items:center;justify-content:center;

@@ -27,7 +27,7 @@ export function BadgeUnlock({ achievementIds, onClose }: BadgeUnlockProps) {
         particleCount: 80,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ["#dc2626", "#fbbf24", "#10b981", "#3b82f6"],
+        colors: ["#FF8A26", "#222326", "#10b981", "#FFA54A"],
       });
     });
   }, []);
