@@ -20,7 +20,8 @@ node_modules/
 Thumbs.db
 
 # Test fixtures (private cat photos)
-
+tests/fixtures/same-cat/**
+tests/fixtures/diff-cat/**
 !tests/fixtures/.gitignore
 !tests/fixtures/same-cat/.gitkeep
 !tests/fixtures/diff-cat/.gitkeep
