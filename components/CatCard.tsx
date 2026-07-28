@@ -1,45 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { Camera } from "lucide-react";
+import { Heart, Camera } from "lucide-react";
+import clsx from "clsx";
 
-interface Cat {
+interface CatCardProps {
   id: string;
-  name: string;
-  photo_count: number;
-  thumb_blob_id: string;
+  thumbUrl: string | null;
+  date: Date;
+  favorite: boolean;
+  onToggleFavorite: () => void;
 }
 
-export function CatCard({ cat }: { cat: Cat }) {
-  const thumbUrl = cat.thumb_blob_id
-    ? `/api/photos/${cat.thumb_blob_id}?thumb=1`
-    : null;
+/** Photo tile for the collection grid: rounded photo, date + heart below. */
+export function CatCard({ id, thumbUrl, date, favorite, onToggleFavorite }: CatCardProps) {
+  const dateLabel = date.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <Link
-      href={`/cat?id=${cat.id}`}
-      className="card-pokedex group active:scale-[0.98] transition-transform"
-    >
-      <div className="aspect-square bg-catdex-input-bg relative overflow-hidden">
+    <div className="animate-fade-up">
+      <Link
+        href={`/cat?id=${id}`}
+        className="block aspect-square rounded-2xl overflow-hidden bg-catdex-input-bg shadow-soft transition-transform active:scale-[0.97]"
+      >
         {thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt={cat.name}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Camera className="h-8 w-8 text-catdex-text-muted" />
-          </div>
+          <span className="w-full h-full flex items-center justify-center">
+            <Camera className="h-7 w-7 text-catdex-gray-light" />
+          </span>
         )}
+      </Link>
+      <div className="flex items-center justify-between px-1 pt-1.5">
+        <span className="text-[0.6875rem] text-catdex-text-muted">{dateLabel}</span>
+        <button
+          aria-label={favorite ? "Quitar de favoritos" : "Añadir a favoritos"}
+          onClick={onToggleFavorite}
+          className="p-1 -m-1 transition-transform active:scale-125"
+        >
+          <Heart
+            className={clsx(
+              "h-4 w-4 transition-colors",
+              favorite ? "text-catdex-orange fill-catdex-orange" : "text-catdex-gray-light"
+            )}
+          />
+        </button>
       </div>
-      <div className="p-2.5">
-        <h3 className="font-semibold text-sm truncate">{cat.name}</h3>
-        <p className="text-xs text-catdex-text-muted mt-0.5">
-          {cat.photo_count} foto{cat.photo_count !== 1 ? "s" : ""}
-        </p>
-      </div>
-    </Link>
+    </div>
   );
 }

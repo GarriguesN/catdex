@@ -3,6 +3,8 @@
  * 100% offline, <1KB, works in all browsers.
  */
 
+import { areSoundsEnabled } from "@/lib/sound-prefs";
+
 let audioCtx: AudioContext | null = null;
 
 function getCtx(): AudioContext {
@@ -11,6 +13,7 @@ function getCtx(): AudioContext {
 }
 
 function playTone(freq: number, dur: number, type: OscillatorType = "square", vol: number = 0.08) {
+  if (!areSoundsEnabled()) return;
   try {
     const ctx = getCtx();
     const osc = ctx.createOscillator();

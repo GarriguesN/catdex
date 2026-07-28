@@ -1,12 +1,13 @@
 @import "tailwindcss";
 
 /* ============================================================
-   CatDex — Tema cálido (paleta del icono)
-   Mobile-first PWA, NO desktop support
+   CatDex — Design System
+   Soft, premium, iOS-inspired. Photography first.
+   Mobile-first PWA.
    ============================================================ */
 
 @theme {
-  /* ── Palette from icon (natxio) ── */
+  /* ── Color palette ── */
   --color-catdex-orange: #FF8A26;
   --color-catdex-orange-light: #FFA54A;
   --color-catdex-orange-dark: #E0781A;
@@ -16,23 +17,13 @@
   --color-catdex-text-secondary: #424242;
   --color-catdex-text-muted: #686868;
   --color-catdex-gray-light: #A9A9A9;
-  --color-catdex-border: #222326;     /* outlined icon style */
-  --color-catdex-input-bg: #F0ECE4;   /* slightly darker cream for inputs */
+  --color-catdex-input-bg: #F3EFE7;
+  --color-catdex-hairline: #EFEAE1;
 
-  /* Accent colors */
-  --color-catdex-blue: #3b82f6;
-  --color-catdex-green: #10b981;
-
-  /* ── Backward-compat: pokedex-* remapped to new palette ── */
-  --color-pokedex-red: var(--color-catdex-orange);
-  --color-pokedex-red-dark: var(--color-catdex-orange-dark);
-  --color-pokedex-black: var(--color-catdex-cream);
-  --color-pokedex-gray-dark: var(--color-catdex-surface);
-  --color-pokedex-gray-mid: var(--color-catdex-input-bg);
-  --color-pokedex-gray-light: var(--color-catdex-text);
-  --color-pokedex-yellow: var(--color-catdex-orange-light);
-  --color-pokedex-blue: var(--color-catdex-blue);
-  --color-pokedex-green: var(--color-catdex-green);
+  /* Semantic accents */
+  --color-catdex-green: #34A853;
+  --color-catdex-green-soft: #3DBE7B;
+  --color-catdex-red: #E5484D;
 
   /* ── shadcn/ui compat ── */
   --color-background: var(--color-catdex-cream);
@@ -45,39 +36,67 @@
   --color-muted-foreground: var(--color-catdex-text-muted);
   --color-accent: var(--color-catdex-orange-light);
   --color-accent-foreground: var(--color-catdex-text);
-  --color-destructive: #ef4444;
-  --color-border: var(--color-catdex-border);
+  --color-destructive: var(--color-catdex-red);
+  --color-border: var(--color-catdex-hairline);
   --color-input: var(--color-catdex-input-bg);
   --color-ring: var(--color-catdex-orange);
 
-  /* Fonts */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-pixel: "Press Start 2P", monospace;
+  /* ── Shadows — very soft ── */
+  --shadow-soft: 0 1px 2px rgba(34, 35, 38, 0.04), 0 4px 16px rgba(34, 35, 38, 0.05);
+  --shadow-card: 0 2px 4px rgba(34, 35, 38, 0.04), 0 8px 24px rgba(34, 35, 38, 0.06);
+  --shadow-float: 0 4px 12px rgba(34, 35, 38, 0.08), 0 12px 32px rgba(34, 35, 38, 0.1);
+  --shadow-fab: 0 4px 10px rgba(255, 138, 38, 0.25), 0 8px 24px rgba(34, 35, 38, 0.12);
 
-  /* Animations */
-  --animate-flash: flash 0.3s ease-out;
-  --animate-shake: shake 0.5s ease-in-out;
-  --animate-pop-in: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* ── Radii — large and rounded ── */
+  --radius-card: 1.25rem;      /* 20px — cards */
+  --radius-card-lg: 1.5rem;    /* 24px — hero cards, sheets */
+  --radius-field: 0.875rem;    /* 14px — inputs, small controls */
+
+  /* ── Typography — SF Pro style ── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+
+  /* ── Animations ── */
+  --animate-flash: flash 0.4s ease-out forwards;
+  --animate-pop-in: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-fade-up: fade-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-sheet-up: sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-float: float 3s ease-in-out infinite;
 }
 
 @keyframes flash {
-  0% { opacity: 1; background-color: white; }
-  100% { opacity: 1; background-color: transparent; }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-8px); }
-  75% { transform: translateX(8px); }
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes pop-in {
-  0% { transform: scale(0.8); opacity: 0; }
+  0% { transform: scale(0.92); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* ── Base — mobile-first, warm light theme ── */
+@keyframes fade-up {
+  0% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes sheet-up {
+  0% { transform: translateY(100%); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ── Base ── */
 html {
   height: 100%;
   background-color: var(--color-catdex-cream);
@@ -93,78 +112,129 @@ body {
   overscroll-behavior: none;
   background-color: var(--color-catdex-cream);
   color: var(--color-catdex-text);
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
 }
 
 /* Bottom nav safe area */
 .bottom-nav-spacer {
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── Card — outlined style matching icon ── */
-.card-pokedex {
+/* ── Card — soft, borderless, white ── */
+.card {
   background: var(--color-catdex-surface);
-  border: 2px solid var(--color-catdex-border);
-  border-radius: 0.75rem;
-  overflow: hidden;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
 }
 
-/* ── Input ── */
-.input-pokedex {
-  background: var(--color-catdex-input-bg);
-  border: 2px solid var(--color-catdex-border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  color: var(--color-catdex-text);
-  font-size: 0.875rem;
-  width: 100%;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.input-pokedex:focus {
-  border-color: var(--color-catdex-orange);
-}
-
-/* ── Button — primary ── */
-.btn-pokedex {
+/* ── Buttons ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   background: var(--color-catdex-orange);
   color: #FFFFFF;
-  border: 2px solid var(--color-catdex-border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-weight: 700;
-  font-size: 0.875rem;
+  border-radius: 9999px;
+  padding: 0.875rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(255, 138, 38, 0.3);
+  transition: background 0.2s, transform 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 
-.btn-pokedex:active {
+.btn-primary:active {
   transform: scale(0.97);
   background: var(--color-catdex-orange-dark);
 }
 
-.btn-pokedex:disabled {
+.btn-primary:disabled {
   opacity: 0.5;
   transform: none;
 }
 
-/* ── Button — secondary ── */
-.btn-pokedex-secondary {
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   background: var(--color-catdex-surface);
   color: var(--color-catdex-text);
-  border: 2px solid var(--color-catdex-border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-catdex-hairline);
+  border-radius: 9999px;
+  padding: 0.875rem 1.5rem;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  box-shadow: var(--shadow-soft);
+  transition: background 0.2s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.btn-pokedex-secondary:active {
+.btn-secondary:active {
   transform: scale(0.97);
   background: var(--color-catdex-input-bg);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  transform: none;
+}
+
+/* Ghost text button */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  color: var(--color-catdex-text-muted);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.btn-ghost:active {
+  color: var(--color-catdex-text);
+}
+
+/* ── Input ── */
+.field {
+  background: var(--color-catdex-surface);
+  border: 1px solid var(--color-catdex-hairline);
+  border-radius: var(--radius-field);
+  padding: 0.8125rem 1rem;
+  color: var(--color-catdex-text);
+  font-size: 0.9375rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field::placeholder {
+  color: var(--color-catdex-gray-light);
+}
+
+.field:focus {
+  border-color: var(--color-catdex-orange);
+  box-shadow: 0 0 0 3px rgba(255, 138, 38, 0.12);
+}
+
+/* ── Skeleton ── */
+.skeleton {
+  background: var(--color-catdex-input-bg);
+  border-radius: var(--radius-card);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 /* ── Empty state ── */
@@ -182,6 +252,7 @@ body {
 /* ── Scrollbar — minimal ── */
 ::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -191,7 +262,25 @@ body {
   border-radius: 2px;
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
 /* ── iOS input date width fix ── */
 input[type="date"] {
   min-width: 140px;
+}
+
+/* ── Leaflet: soft rounded pins, no default chrome ── */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #EAE6DD;
+}
+.cat-marker,
+.cluster-marker {
+  background: none;
+  border: none;
 }

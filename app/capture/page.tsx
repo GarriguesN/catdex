@@ -1,38 +1,35 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { X, Zap, ZapOff, Image as ImageIcon, SwitchCamera, Camera, Upload } from "lucide-react";
+import clsx from "clsx";
 import { normalizePhoto, blurScore, getImageData } from "@/lib/image";
-import { openCamera, captureFrame, isCameraAvailable } from "@/lib/camera";
+import { openCamera, captureFrame, isCameraAvailable, setTorch } from "@/lib/camera";
 import { generateCatName } from "@/lib/names";
-import { generateUUID } from "@/lib/utils";
 import { getBlurCopy, getNotCatCopy } from "@/lib/copy";
 import { classifyPhoto } from "@/lib/classifier";
-import { computePHash, hammingDistance, similarity } from "@/lib/phash";
+import { computePHash, similarity } from "@/lib/phash";
 import { getPocketBase } from "@/lib/pocketbase";
+import { playShutterSound } from "@/lib/sounds";
 import { CatPicker } from "@/components/CatPicker";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
 import { DetectingScreen } from "@/components/capture/DetectingScreen";
 import { NotCatScreen } from "@/components/capture/NotCatScreen";
+import { CropScreen } from "@/components/capture/CropScreen";
 import { SavedScreen } from "@/components/capture/SavedScreen";
-import { ArrowLeft, Zap, Upload, Camera } from "lucide-react";
-import Link from "next/link";
 
-type Screen = "camera" | "blur" | "detecting" | "notcat" | "matching" | "saved";
-
-interface MatchCandidate {
-  id: string;
-  name: string;
-  similarity: number;
-  photoCount?: number;
-}
+type Screen = "camera" | "blur" | "detecting" | "notcat" | "crop" | "saved";
 
 export default function CapturePage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [hasStream, setHasStream] = useState(false);
   const [cameraError, setCameraError] = useState(false);
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
+  const [torchOn, setTorchOn] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>("camera");
@@ -40,64 +37,118 @@ export default function CapturePage() {
   const [notCatCopy, setNotCatCopy] = useState({ title: "", subtitle: "" });
   const [isSpecificAnimal, setIsSpecificAnimal] = useState(false);
   const [savedCatId, setSavedCatId] = useState<string | null>(null);
-  const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([]);
+  const [suggestedIds, setSuggestedIds] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const pendingBlobRef = useRef<Blob | null>(null);
   const pendingThumbBlobRef = useRef<Blob | null>(null);
+  const pendingHashRef = useRef<string>("");
+  const positionRef = useRef<{ lat: number; lng: number } | null>(null);
 
-  // ── Camera ──
-
-  const startCamera = useCallback(async () => {
-    setCameraError(false);
-    try {
-      const s = await openCamera();
-      setStream(s);
-      if (videoRef.current) videoRef.current.srcObject = s;
-    } catch { setCameraError(true); }
-  }, []);
+  // ── Camera lifecycle ──
 
   const stopCamera = useCallback(() => {
-    if (stream) { stream.getTracks().forEach(t => t.stop()); setStream(null); }
-  }, [stream]);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setHasStream(false);
+  }, []);
+
+  const startCamera = useCallback(
+    async (facingMode: "environment" | "user" = "environment") => {
+      stopCamera();
+      setCameraError(false);
+      try {
+        const s = await openCamera(facingMode);
+        streamRef.current = s;
+        setHasStream(true);
+        if (videoRef.current) videoRef.current.srcObject = s;
+      } catch {
+        setCameraError(true);
+      }
+    },
+    [stopCamera]
+  );
+
+  useEffect(() => {
+    if (isCameraAvailable()) startCamera(facing);
+
+    // Grab position early (best effort) so saves carry GPS
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => {
+        positionRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      },
+      () => {},
+      { timeout: 10000, maximumAge: 60000 }
+    );
+
+    return stopCamera;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The <video> mounts after hasStream flips — re-attach the stream then
+  useEffect(() => {
+    if (hasStream && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [hasStream]);
+
+  function flipCamera() {
+    const next = facing === "environment" ? "user" : "environment";
+    setFacing(next);
+    setTorchOn(false);
+    startCamera(next);
+  }
+
+  async function toggleTorch() {
+    if (!streamRef.current) return;
+    const next = !torchOn;
+    setTorchOn(next);
+    await setTorch(streamRef.current, next);
+  }
+
+  // ── Capture ──
 
   const doCapture = useCallback(async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || capturing) return;
     setCapturing(true);
+    playShutterSound();
     try {
       const canvas = captureFrame(videoRef.current);
-      const blob = await new Promise<Blob>(r => canvas.toBlob(b => r(b!), "image/jpeg", 0.9));
-      const url = URL.createObjectURL(blob);
-      setPreviewUrl(url);
+      const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), "image/jpeg", 0.9));
       await processCapture(blob);
-    } finally { setCapturing(false); }
-  }, []);
+    } finally {
+      setCapturing(false);
+    }
+  }, [capturing]);
 
   const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setCapturing(true);
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    await processCapture(file);
-    setCapturing(false);
+    try {
+      await processCapture(file);
+    } finally {
+      setCapturing(false);
+      e.target.value = "";
+    }
   }, []);
 
-  // ── Pipeline ──
+  // ── Pipeline: normalize → blur check → MobileNet → crop ──
 
   async function processCapture(file: Blob) {
     // 1. Normalize
-    const { blob, thumbBlob } = await normalizePhoto(new File([file], "capture.jpg", { type: file.type }));
-    pendingBlobRef.current = blob;
-    pendingThumbBlobRef.current = thumbBlob;
-    setPreviewUrl(URL.createObjectURL(blob));
+    const { blob } = await normalizePhoto(new File([file], "capture.jpg", { type: file.type || "image/jpeg" }));
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
 
-    // 2. Blur check (on raw frame, before compression)
+    // 2. Blur check
     const img = new Image();
-    img.src = URL.createObjectURL(blob);
-    await new Promise(r => img.onload = r);
+    img.src = url;
+    await new Promise((r) => (img.onload = r));
     const bc = document.createElement("canvas");
-    bc.width = img.width; bc.height = img.height;
+    bc.width = img.width;
+    bc.height = img.height;
     bc.getContext("2d")!.drawImage(img, 0, 0);
     const bv = blurScore(getImageData(bc));
 
@@ -109,7 +160,6 @@ export default function CapturePage() {
 
     // 3. MobileNet gate
     setScreen("detecting");
-
     const result = await classifyPhoto(img);
 
     if (result.quality === "not_cat") {
@@ -120,159 +170,234 @@ export default function CapturePage() {
       return;
     }
 
-    // 4. Classification passed — compute pHash, then show manual CatPicker
-    //    (pHash used ONLY as sort hint, NOT as inclusion/exclusion filter)
+    // 4. Manual crop
+    setScreen("crop");
+  }
+
+  // ── After crop: pHash + picker ──
+
+  async function handleCropConfirm(croppedBlob: Blob) {
     setScreen("detecting");
+    try {
+      const { blob, thumbBlob } = await normalizePhoto(
+        new File([croppedBlob], "crop.jpg", { type: "image/jpeg" })
+      );
+      pendingBlobRef.current = blob;
+      pendingThumbBlobRef.current = thumbBlob;
+      setPreviewUrl(URL.createObjectURL(blob));
 
-    const hash = await computePHash(getImageData(bc));
-    const pb = getPocketBase();
+      // pHash on the cropped image — used only to sort picker suggestions
+      const img = new Image();
+      img.src = URL.createObjectURL(croppedBlob);
+      await new Promise((r) => (img.onload = r));
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      c.getContext("2d")!.drawImage(img, 0, 0);
+      const hash = await computePHash(getImageData(c));
+      pendingHashRef.current = hash;
 
-    // Get all cats, sorted by pHash similarity as hint
-    const allCats = await pb.collection("cats").getFullList({ fields: "id,name,hash" });
-    const scored = allCats
-      .filter((c: any) => c.hash && c.hash.length === 16)
-      .map((c: any) => ({ id: c.id, sim: similarity(hash, c.hash) }))
-      .sort((a: any, b: any) => b.sim - a.sim);
+      const pb = getPocketBase();
+      const allCats = await pb.collection("cats").getFullList({ fields: "id,name,hash" });
+      const scored = allCats
+        .filter((cat: any) => cat.hash && cat.hash.length === 16)
+        .map((cat: any) => ({ id: cat.id, sim: similarity(hash, cat.hash) }))
+        .sort((a: any, b: any) => b.sim - a.sim);
 
-    // Store hash + suggested order
-    pendingBlobRef.current = blob;
-    pendingThumbBlobRef.current = thumbBlob;
-    (pendingBlobRef as any).hash = hash;
-
-    setMatchCandidates(scored.map((c: any) => ({ id: c.id, name: "", similarity: c.sim })));
+      setSuggestedIds(scored.map((s: any) => s.id));
+    } catch (err) {
+      console.error("Crop processing failed:", err);
+      setSuggestedIds([]);
+    }
     setShowPicker(true);
+  }
+
+  // ── Save (skip crop when "Usar de todas formas") ──
+
+  async function handleUseAnyway() {
+    setScreen("crop");
   }
 
   async function saveCat(existingCatId: string | null = null) {
     const blob = pendingBlobRef.current;
     const thumbBlob = pendingThumbBlobRef.current;
-    if (!blob || !thumbBlob) return;
+    if (!blob || !thumbBlob || saving) return;
+    setSaving(true);
 
-    const hash = (pendingBlobRef as any).hash || "";
-    const pb = getPocketBase();
+    try {
+      const hash = pendingHashRef.current;
+      const pb = getPocketBase();
 
-    let catId = existingCatId;
+      let catId = existingCatId;
 
-    if (!catId) {
-      // New cat
-      const name = generateCatName();
-      const cat = await pb.collection("cats").create({
-        name,
-        hash,
-        photoCount: 1,
-        discoveredBy: pb.authStore.record?.id,
-      });
-      catId = cat.id;
-    } else {
-      // Existing cat — update photo count
-      const cat = await pb.collection("cats").getOne(catId) as any;
-      await pb.collection("cats").update(catId, {
-        photoCount: (cat.photoCount || 0) + 1,
-        hash, // Update hash with latest photo's hash
-      });
+      if (!catId) {
+        const name = generateCatName();
+        const cat = await pb.collection("cats").create({
+          name,
+          hash,
+          photoCount: 1,
+          discoveredBy: pb.authStore.record?.id,
+        });
+        catId = cat.id;
+      } else {
+        const cat = (await pb.collection("cats").getOne(catId)) as any;
+        await pb.collection("cats").update(catId, {
+          photoCount: (cat.photoCount || 0) + 1,
+          hash,
+        });
+      }
+
+      const form = new FormData();
+      form.append("cat", catId!);
+      form.append("user", pb.authStore.record?.id || "");
+      form.append("photo", new File([blob], "photo.webp", { type: blob.type }));
+      form.append("thumb", new File([thumbBlob], "thumb.webp", { type: thumbBlob.type }));
+      form.append("phash", hash);
+      if (positionRef.current) {
+        form.append("lat", String(positionRef.current.lat));
+        form.append("lng", String(positionRef.current.lng));
+      }
+      await pb.collection("photos").create(form);
+
+      stopCamera();
+      setSavedCatId(catId);
+      setScreen("saved");
+    } catch (err) {
+      console.error("Save failed:", err);
+      alert("No se ha podido guardar. Inténtalo de nuevo.");
     }
-
-    const form = new FormData();
-    form.append("cat", catId!);
-    form.append("user", pb.authStore.record?.id || "");
-    form.append("photo", new File([blob], "photo.webp", { type: "image/webp" }));
-    form.append("thumb", new File([thumbBlob], "thumb.webp", { type: "image/webp" }));
-    form.append("phash", hash);
-    await pb.collection("photos").create(form);
-
-    setSavedCatId(catId);
-    setScreen("saved");
+    setSaving(false);
   }
 
   function resetCapture() {
     setScreen("camera");
     setPreviewUrl(null);
+    setShowPicker(false);
     pendingBlobRef.current = null;
     pendingThumbBlobRef.current = null;
+    pendingHashRef.current = "";
+    if (!streamRef.current && isCameraAvailable()) startCamera(facing);
   }
 
-  // ── Render: Camera ──
+  // ── Render ──
 
-  if (screen === "camera" || screen === "saved") {
-    return (
-      <div className="py-4 space-y-4">
-        {screen === "saved" && savedCatId && <SavedScreen catId={savedCatId} photoUrl={previewUrl!} />}
-
-        <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 -ml-2 rounded-lg hover:bg-catdex-input-bg">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="text-xl font-bold">Atrapar</h1>
-        </div>
-
-        {!previewUrl ? (
-          <div className="relative aspect-[3/4] bg-black rounded-xl overflow-hidden border-2 border-catdex-border">
-            {!stream && !cameraError ? (
-              <div className="flex flex-col items-center justify-center h-full gap-4 p-6 bg-[#1a1a1a]">
-                <Camera className="h-12 w-12 text-white/40" />
-                <p className="text-sm text-white/50 text-center">Encuentra a tu gato salvaje</p>
-                {isCameraAvailable() && (
-                  <button onClick={startCamera} className="btn-pokedex flex items-center gap-2">
-                    <Zap className="h-4 w-4" /> Abrir cámara
-                  </button>
-                )}
-                <button onClick={() => fileInputRef.current?.click()} className="btn-pokedex-secondary flex items-center gap-2">
-                  <Upload className="h-4 w-4" /> Subir foto
-                </button>
-              </div>
-            ) : stream ? (
-              <div className="relative w-full h-full">
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                {/* Corner brackets */}
-                <div className="absolute inset-4 pointer-events-none">
-                  <svg viewBox="0 0 100 100" className="w-full h-full text-white/30" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M0 20V0h20" /><path d="M80 0h20v20" />
-                    <path d="M100 80v20H80" /><path d="M20 100H0V80" />
-                  </svg>
-                </div>
-                {/* Stable pill */}
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-[#6ABF95] rounded-full">
-                  <span className="text-white text-xs font-semibold">Estable</span>
-                </div>
-                {/* Capture button */}
-                <button
-                  onClick={doCapture}
-                  disabled={capturing}
-                  className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full border-[5px] border-[#FC791A] active:scale-90 transition-transform disabled:opacity-50"
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-4 p-6 bg-[#1a1a1a]">
-                <p className="text-sm text-white/50">Cámara no disponible</p>
-                <button onClick={() => fileInputRef.current?.click()} className="btn-pokedex-secondary">
-                  <Upload className="h-4 w-4" /> Subir foto
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="relative aspect-[3/4] rounded-xl overflow-hidden border-2 border-catdex-border">
-            <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-            {capturing && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <div className="w-10 h-10 border-4 border-[#FC791A] border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-          </div>
-        )}
-
-        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileInput} />
-      </div>
-    );
+  if (screen === "saved" && savedCatId) {
+    return <SavedScreen catId={savedCatId} photoUrl={previewUrl!} onContinue={resetCapture} />;
   }
-
-  // ── Render: Blur / Detecting / NotCat overlays ──
 
   return (
     <>
-      {/* Camera background */}
-      <div className="absolute inset-0 bg-black" />
+      {/* Full-screen camera */}
+      <div className="fixed inset-0 z-40 bg-black flex flex-col">
+        {hasStream ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={clsx("absolute inset-0 w-full h-full object-cover", facing === "user" && "scale-x-[-1]")}
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 bg-[#1a1a1a]">
+            <Camera className="h-12 w-12 text-white/30" />
+            <p className="text-sm text-white/50 text-center">
+              {cameraError ? "Cámara no disponible" : "Encuentra a tu gato salvaje"}
+            </p>
+            {cameraError && isCameraAvailable() && (
+              <button onClick={() => startCamera(facing)} className="btn-primary">
+                Reintentar cámara
+              </button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white active:bg-white/10"
+            >
+              <Upload className="h-4 w-4" /> Subir foto
+            </button>
+          </div>
+        )}
 
+        {/* Top controls */}
+        <div
+          className="relative z-10 flex items-center justify-between px-4"
+          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        >
+          <button
+            onClick={() => {
+              stopCamera();
+              router.push("/");
+            }}
+            aria-label="Cerrar"
+            className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          {hasStream && (
+            <span className="px-4 py-1.5 bg-[#3DBE7B] rounded-full text-white text-xs font-semibold shadow-soft">
+              Estable
+            </span>
+          )}
+
+          <button
+            onClick={toggleTorch}
+            aria-label={torchOn ? "Apagar flash" : "Encender flash"}
+            className={clsx(
+              "w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors",
+              torchOn ? "bg-catdex-orange text-white" : "bg-black/30 text-white"
+            )}
+          >
+            {torchOn ? <Zap className="h-5 w-5" /> : <ZapOff className="h-5 w-5" />}
+          </button>
+        </div>
+
+        {/* Corner brackets */}
+        {hasStream && (
+          <div className="absolute inset-x-10 top-[18%] bottom-[26%] pointer-events-none">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full text-white/60" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M0 12V0h12" vectorEffect="non-scaling-stroke" strokeWidth="3" />
+              <path d="M88 0h12v12" vectorEffect="non-scaling-stroke" strokeWidth="3" />
+              <path d="M100 88v12H88" vectorEffect="non-scaling-stroke" strokeWidth="3" />
+              <path d="M12 100H0V88" vectorEffect="non-scaling-stroke" strokeWidth="3" />
+            </svg>
+          </div>
+        )}
+
+        {/* Bottom controls */}
+        <div
+          className="relative z-10 mt-auto flex items-center justify-between px-10"
+          style={{ paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))" }}
+        >
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Abrir galería"
+            className="w-12 h-12 rounded-2xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
+          >
+            <ImageIcon className="h-5.5 w-5.5" />
+          </button>
+
+          <button
+            onClick={doCapture}
+            disabled={!hasStream || capturing}
+            aria-label="Capturar"
+            className="w-[4.5rem] h-[4.5rem] rounded-full border-4 border-white flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40"
+          >
+            <span className={clsx("w-14 h-14 rounded-full", capturing ? "bg-catdex-orange animate-pulse" : "bg-white")} />
+          </button>
+
+          <button
+            onClick={flipCamera}
+            aria-label="Girar cámara"
+            className="w-12 h-12 rounded-2xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
+          >
+            <SwitchCamera className="h-5.5 w-5.5" />
+          </button>
+        </div>
+
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
+      </div>
+
+      {/* Pipeline overlays */}
       {screen === "blur" && (
         <BlurCheckScreen
           title={blurCopy.title}
@@ -283,7 +408,7 @@ export default function CapturePage() {
         />
       )}
 
-      {screen === "detecting" && <DetectingScreen photoUrl={previewUrl!} />}
+      {screen === "detecting" && !showPicker && <DetectingScreen photoUrl={previewUrl!} />}
 
       {screen === "notcat" && (
         <NotCatScreen
@@ -292,24 +417,31 @@ export default function CapturePage() {
           isSpecific={isSpecificAnimal}
           photoUrl={previewUrl!}
           onRetry={resetCapture}
-          onUseAnyway={() => saveCat(null)}
+          onUseAnyway={handleUseAnyway}
           onClose={resetCapture}
         />
       )}
 
-      {/* CatPicker — always shown after classification, pHash-ordered */}
+      {screen === "crop" && previewUrl && (
+        <CropScreen photoUrl={previewUrl} onConfirm={handleCropConfirm} onBack={resetCapture} />
+      )}
+
       {showPicker && (
         <CatPicker
-          suggestedIds={matchCandidates.map(c => c.id)}
+          suggestedIds={suggestedIds}
           onSelect={(catId) => {
             setShowPicker(false);
             saveCat(catId);
           }}
-          onCancel={() => {
-            setShowPicker(false);
-            resetCapture();
-          }}
+          onCancel={resetCapture}
         />
+      )}
+
+      {/* Saving overlay */}
+      {saving && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-catdex-orange border-t-transparent rounded-full animate-spin" />
+        </div>
       )}
     </>
   );

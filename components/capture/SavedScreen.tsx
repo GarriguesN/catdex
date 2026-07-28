@@ -3,23 +3,38 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Volume2 } from "lucide-react";
+import { ToggleChip } from "@/components/ui/Chip";
+import { areSoundsEnabled, setSoundsEnabled } from "@/lib/sound-prefs";
+import { playCaptureSound } from "@/lib/sounds";
 
 interface SavedScreenProps {
   catId: string;
   photoUrl: string;
+  onContinue?: () => void;
 }
 
-const CONFETTI_COLORS = ["#FC791A", "#6ABF95", "#222326", "#FFFFFF"];
+const FLASH_KEY = "catdex_flash_enabled";
+const CONFETTI_COLORS = ["#FF8A26", "#FFA54A", "#3DBE7B", "#222326"];
 
-export function SavedScreen({ catId, photoUrl }: SavedScreenProps) {
+export function SavedScreen({ catId, photoUrl, onContinue }: SavedScreenProps) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [flash, setFlash] = useState(true);
-  const [sound, setSound] = useState(true);
+  const [showFlash, setShowFlash] = useState(false);
+  const [flashOn, setFlashOn] = useState(true);
+  const [soundOn, setSoundOn] = useState(true);
 
   useEffect(() => {
-    // Flash effect (brief white overlay)
-    const t = setTimeout(() => setFlash(false), 400);
+    const flashEnabled = localStorage.getItem(FLASH_KEY) !== "0";
+    const soundEnabled = areSoundsEnabled();
+    setFlashOn(flashEnabled);
+    setSoundOn(soundEnabled);
+
+    // Flash effect + shutter feedback
+    if (flashEnabled) {
+      setShowFlash(true);
+      setTimeout(() => setShowFlash(false), 450);
+    }
+    if (soundEnabled) playCaptureSound();
 
     // Confetti
     const canvas = canvasRef.current;
@@ -61,61 +76,64 @@ export function SavedScreen({ catId, photoUrl }: SavedScreenProps) {
     }
     frameId = requestAnimationFrame(animate);
 
-    return () => { clearTimeout(t); cancelAnimationFrame(frameId); };
+    return () => cancelAnimationFrame(frameId);
   }, []);
 
+  function toggleFlash() {
+    setFlashOn((on) => {
+      localStorage.setItem(FLASH_KEY, on ? "0" : "1");
+      return !on;
+    });
+  }
+
+  function toggleSound() {
+    setSoundOn((on) => {
+      setSoundsEnabled(!on);
+      return !on;
+    });
+  }
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#FAF5EE] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-catdex-cream flex flex-col">
       {/* Flash overlay */}
-      {flash && <div className="absolute inset-0 bg-white animate-flash pointer-events-none" />}
+      {showFlash && <div className="absolute inset-0 bg-white animate-flash pointer-events-none z-10" />}
 
       {/* Confetti canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
 
-      <div className="relative flex flex-col items-center justify-center flex-1 px-6 space-y-6">
+      <div className="relative flex flex-col items-center justify-center flex-1 px-6">
         {/* Photo with checkmark badge */}
-        <div className="relative">
-          <div className="w-48 h-64 rounded-2xl overflow-hidden border-2 border-[#222326]/20 shadow-lg">
-            <img src={photoUrl} alt="Captured cat" className="w-full h-full object-cover" />
+        <div className="relative mb-7 animate-pop-in">
+          <div className="w-48 h-60 rounded-3xl overflow-hidden shadow-card bg-catdex-input-bg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoUrl} alt="Gato capturado" className="w-full h-full object-cover" />
           </div>
-          {/* Green checkmark badge overlapping bottom-right */}
-          <div className="absolute -bottom-4 -right-4 w-10 h-10 rounded-full bg-[#6ABF95] border-4 border-[#FAF5EE] flex items-center justify-center shadow-md">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-11 h-11 rounded-full bg-[#3DBE7B] border-4 border-catdex-cream flex items-center justify-center shadow-soft">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
         </div>
 
-        {/* Title */}
-        <h2 className="text-2xl font-bold text-[#222326]">¡Capturado!</h2>
+        <h2 className="text-2xl font-bold text-catdex-text mb-6">¡Gato guardado!</h2>
 
-        {/* Toggle chips: Flash + Sound */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setFlash(!flash)}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
-              flash ? "border-[#FC791A] text-[#FC791A] bg-[#FC791A]/5" : "border-[#A9A9A9]/30 text-[#A9A9A9]"
-            }`}
-          >
+        {/* Flash + Sound toggle chips */}
+        <div className="flex items-center gap-3 mb-8">
+          <ToggleChip active={flashOn} onClick={toggleFlash}>
             <Zap className="h-3.5 w-3.5" /> Flash
-          </button>
-          <button
-            onClick={() => setSound(!sound)}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-semibold transition-colors ${
-              sound ? "border-[#FC791A] text-[#FC791A] bg-[#FC791A]/5" : "border-[#A9A9A9]/30 text-[#A9A9A9]"
-            }`}
-          >
+          </ToggleChip>
+          <ToggleChip active={soundOn} onClick={toggleSound}>
             <Volume2 className="h-3.5 w-3.5" /> Sonido
-          </button>
+          </ToggleChip>
         </div>
 
-        {/* Primary CTA */}
-        <button onClick={() => router.push(`/cat?id=${catId}`)} className="btn-pokedex w-full">
+        <button onClick={() => router.push(`/cat?id=${catId}`)} className="btn-primary w-full max-w-xs">
           Ver ficha
         </button>
-
-        {/* Secondary CTA */}
-        <button onClick={() => router.push("/capture")} className="text-sm text-[#686868] hover:text-[#222326] font-medium">
+        <button
+          onClick={() => (onContinue ? onContinue() : window.location.reload())}
+          className="btn-ghost mt-3"
+        >
           Seguir capturando
         </button>
       </div>
