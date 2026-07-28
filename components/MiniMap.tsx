@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { getPocketBase } from "@/lib/pocketbase";
 
 // @ts-expect-error
 delete L.Icon.Default.prototype._getIconUrl;
@@ -31,11 +32,11 @@ export default function MiniMap({ catId }: { catId: string }) {
 
   async function loadPhotos() {
     try {
-      const res = await fetch(`/api/cats/${catId}`);
-      if (res.ok) {
-        const cat = await res.json();
-        setPhotos((cat.photos || []).filter((p: any) => p.lat && p.lng));
-      }
+      const pb = getPocketBase();
+      const result = await pb.collection("photos").getFullList({
+        filter: `cat="${catId}" && lat!=null`,
+      });
+      setPhotos(result.map((p: any) => ({ lat: p.lat, lng: p.lng })));
     } catch {}
     setLoading(false);
   }

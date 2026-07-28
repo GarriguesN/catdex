@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  useMap,
-} from "react-leaflet";
+import { useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { getPocketBase } from "@/lib/pocketbase";
 
 // @ts-expect-error
 delete L.Icon.Default.prototype._getIconUrl;
@@ -23,7 +18,8 @@ export interface MapMarkerData {
   id: string;
   catId: string;
   catName: string;
-  thumbBlobId: string;
+  thumbFieldName?: string;
+  photoId: string;
   lat: number;
   lng: number;
   takenAt: number;
@@ -57,8 +53,15 @@ function FitBounds({ markers }: { markers: MapMarkerData[] }) {
   return null;
 }
 
-export default function LeafletMap({ markers, onMarkerClick }: { markers: MapMarkerData[]; onMarkerClick: (m: MapMarkerData) => void }) {
+export default function LeafletMap({ markers, onMarkerClick }: {
+  markers: MapMarkerData[];
+  onMarkerClick: (m: MapMarkerData) => void;
+}) {
   if (markers.length === 0) return null;
+
+  const pb = getPocketBase();
+  const baseUrl = pb.baseUrl;
+
   const center: [number, number] = [markers[0].lat, markers[0].lng];
 
   return (
@@ -66,11 +69,18 @@ export default function LeafletMap({ markers, onMarkerClick }: { markers: MapMar
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <FitBounds markers={markers} />
       {markers.map(m => {
-        const thumbUrl = m.thumbBlobId ? `/api/photos/${m.thumbBlobId}?thumb=1` : null;
+        const thumbUrl = m.thumbFieldName
+          ? `${baseUrl}/api/files/photos/${m.photoId}/${m.thumbFieldName}?thumb=40x40`
+          : null;
         return (
           <Marker key={m.id} position={[m.lat, m.lng]} icon={createCatIcon(thumbUrl)}
             eventHandlers={{ click: () => onMarkerClick(m) }}>
-            <Popup><div style={{ minWidth: 120 }}><strong>{m.catName}</strong><br /><small>{new Date(m.takenAt).toLocaleDateString("es-ES")}</small></div></Popup>
+            <Popup>
+              <div style={{ minWidth: 120 }}>
+                <strong>{m.catName}</strong><br />
+                <small>{new Date(m.takenAt).toLocaleDateString("es-ES")}</small>
+              </div>
+            </Popup>
           </Marker>
         );
       })}

@@ -6,13 +6,23 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
+import { getPocketBase } from "@/lib/pocketbase";
 
 const LazyMap = dynamic(() => import("@/components/LeafletMap"), {
   ssr: false,
   loading: () => <div className="skeleton h-[60dvh] w-full rounded-xl flex items-center justify-center"><span className="text-catdex-text-muted">Cargando mapa…</span></div>,
 });
 
-interface MapMarkerData { id: string; catId: string; catName: string; thumbBlobId: string; lat: number; lng: number; takenAt: number; }
+export interface MapMarkerData {
+  id: string;
+  catId: string;
+  catName: string;
+  thumbFieldName?: string;
+  photoId: string;
+  lat: number;
+  lng: number;
+  takenAt: number;
+}
 
 function MapPageInner() {
   const searchParams = useSearchParams();
@@ -25,30 +35,32 @@ function MapPageInner() {
 
   async function loadMarkers() {
     try {
-      const url = filterCatId ? `/api/cats/${filterCatId}` : "/api/cats";
-      const res = await fetch(url);
-      if (!res.ok) { setLoading(false); return; }
-      
-      let catsWithPhotos: any[];
-      if (filterCatId) {
-        const cat = await res.json();
-        catsWithPhotos = [cat];
-      } else {
-        catsWithPhotos = await res.json();
-      }
+      const pb = getPocketBase();
+
+      // Fetch all photos with GPS coordinates, expand user and cat
+      const filters = filterCatId ? `cat="${filterCatId}"` : "lat!=null";
+      const result = await pb.collection("photos").getList(1, 200, {
+        filter: filters,
+        sort: "-created",
+        expand: "cat,user",
+      });
 
       const enriched: MapMarkerData[] = [];
-      for (const cat of catsWithPhotos) {
-        const photos = cat.photos || [];
-        for (const p of photos) {
-          if (p.lat && p.lng) {
-            enriched.push({
-              id: p.id, catId: cat.id, catName: cat.name,
-              thumbBlobId: p.id, lat: p.lat, lng: p.lng, takenAt: p.taken_at,
-            });
-          }
+      for (const p of result.items as any[]) {
+        if (p.lat && p.lng) {
+          enriched.push({
+            id: p.id,
+            catId: p.cat,
+            catName: p.expand?.cat?.name || "Gato",
+            thumbFieldName: p.photo || undefined,
+            photoId: p.id,
+            lat: p.lat,
+            lng: p.lng,
+            takenAt: new Date(p.created).getTime(),
+          });
         }
       }
+
       enriched.sort((a, b) => b.takenAt - a.takenAt);
       setMarkers(enriched);
     } catch {}
@@ -64,13 +76,18 @@ function MapPageInner() {
     <div className="py-4 space-y-4">
       <div className="flex items-center gap-3">
         <Link href="/" className="p-2 -ml-2 rounded-lg hover:bg-catdex-input-bg"><ArrowLeft className="h-5 w-5" /></Link>
-        <div><h1 className="text-xl font-bold">{catName ? `Mapa de ${catName}` : "Mapa"}</h1></div>
+        <div><h1 className="text-xl font-bold">{catName ? `Mapa de ${catName}` : "Mapa colaborativo"}</h1></div>
         <span className="ml-auto text-sm text-catdex-text-muted">{markers.length} punto{markers.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {loading ? <div className="skeleton h-[60dvh] w-full rounded-xl" /> :
-       markers.length === 0 ? (
-        <div className="empty-state"><MapPin className="h-12 w-12 text-catdex-text-muted mb-4" /><p className="text-lg font-medium">Sin ubicaciones</p></div>
+      {loading ? (
+        <div className="skeleton h-[60dvh] w-full rounded-xl" />
+      ) : markers.length === 0 ? (
+        <div className="empty-state">
+          <MapPin className="h-12 w-12 text-catdex-text-muted mb-4" />
+          <p className="text-lg font-medium">Sin ubicaciones aún</p>
+          <p className="text-sm text-catdex-text-muted mt-1">Los avistamientos con GPS aparecerán aquí</p>
+        </div>
       ) : (
         <div className="relative rounded-xl overflow-hidden border-2 border-catdex-border">
           <LazyMap markers={markers} onMarkerClick={setSelectedMarker} />
