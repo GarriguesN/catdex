@@ -1,26 +1,177 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================
+   CatDex — Pokédex theme (rojo/negro)
+   Mobile-first PWA, NO desktop support
+   ============================================================ */
+
+@theme {
+  /* Pokédex palette */
+  --color-pokedex-red: #dc2626;
+  --color-pokedex-red-dark: #991b1b;
+  --color-pokedex-black: #0f0f0f;
+  --color-pokedex-gray-dark: #1a1a1a;
+  --color-pokedex-gray-mid: #2a2a2a;
+  --color-pokedex-gray-light: #f5f5f5;
+  --color-pokedex-yellow: #fbbf24;
+  --color-pokedex-blue: #3b82f6;
+  --color-pokedex-green: #10b981;
+
+  /* Aliases for shadcn/ui compatibility */
+  --color-background: var(--color-pokedex-black);
+  --color-foreground: var(--color-pokedex-gray-light);
+  --color-primary: var(--color-pokedex-red);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-pokedex-gray-dark);
+  --color-secondary-foreground: var(--color-pokedex-gray-light);
+  --color-muted: var(--color-pokedex-gray-mid);
+  --color-muted-foreground: #9ca3af;
+  --color-accent: var(--color-pokedex-yellow);
+  --color-accent-foreground: var(--color-pokedex-black);
+  --color-destructive: #ef4444;
+  --color-border: #333333;
+  --color-input: #333333;
+  --color-ring: var(--color-pokedex-red);
+
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-pixel: "Press Start 2P", monospace;
+
+  /* Animations */
+  --animate-flash: flash 0.3s ease-out;
+  --animate-shake: shake 0.5s ease-in-out;
+  --animate-pop-in: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@keyframes flash {
+  0% { opacity: 1; background-color: white; }
+  100% { opacity: 1; background-color: transparent; }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Base — mobile-first, dark theme */
+html {
+  height: 100%;
+  background-color: var(--color-pokedex-black);
+  color: var(--color-pokedex-gray-light);
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+  overscroll-behavior: none;
+}
+
+/* Bottom nav safe area — 48px + safe-area-inset-bottom */
+.bottom-nav-spacer {
+  padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Card — Pokédex style */
+.card-pokedex {
+  background: var(--color-pokedex-gray-dark);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Input — dark theme */
+.input-pokedex {
+  background: var(--color-pokedex-gray-mid);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--color-pokedex-gray-light);
+  font-size: 0.875rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-pokedex:focus {
+  border-color: var(--color-pokedex-red);
+}
+
+/* Button — primary */
+.btn-pokedex {
+  background: var(--color-pokedex-red);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-pokedex:active {
+  transform: scale(0.97);
+  background: var(--color-pokedex-red-dark);
+}
+
+.btn-pokedex:disabled {
+  opacity: 0.5;
+  transform: none;
+}
+
+/* Button — secondary */
+.btn-pokedex-secondary {
+  background: var(--color-pokedex-gray-mid);
+  color: var(--color-pokedex-gray-light);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-pokedex-secondary:active {
+  transform: scale(0.97);
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-muted-foreground);
+  min-height: 50dvh;
+}
+
+/* Scrollbar — minimal on dark */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-pokedex-gray-mid);
+  border-radius: 2px;
+}
+
+/* iOS input date width fix */
+input[type="date"] {
+  min-width: 140px;
 }
