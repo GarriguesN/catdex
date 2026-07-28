@@ -97,7 +97,7 @@ body {
 
 /* Bottom nav safe area */
 .bottom-nav-spacer {
-  padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Card — outlined style matching icon ── */

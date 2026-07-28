@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { CatCard } from "@/components/CatCard";
-import { FAB } from "@/components/FAB";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
 import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
@@ -149,7 +148,6 @@ export default function HomePage() {
         </div>
       )}
 
-      <FAB />
       <InstallBanner />
     </>
   );
