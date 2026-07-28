@@ -13,6 +13,7 @@ import { generateUUID } from "@/lib/utils";
 import { CatPicker } from "@/components/CatPicker";
 import { BadgeUnlock } from "@/components/BadgeUnlock";
 import { classifyPhoto, type ClassificationResult } from "@/lib/classifier";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Camera, Upload, Zap } from "lucide-react";
 import Link from "next/link";
 
@@ -28,6 +29,7 @@ export default function CapturePage() {
   const [newBadges, setNewBadges] = useState<string[] | null>(null);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [showClassWarning, setShowClassWarning] = useState(false);
+  const [flash, setFlash] = useState(false);
   const pendingDataRef = useRef<{
     blob: Blob;
     thumbBlob: Blob;
@@ -64,6 +66,9 @@ export default function CapturePage() {
     setCapturing(true);
     // Shutter sound
     import("@/lib/sounds").then(({ playShutterSound }) => playShutterSound());
+    // Flash animation
+    setFlash(true);
+    setTimeout(() => setFlash(false), 300);
     try {
       const canvas = captureFrame(videoRef.current);
       const blob = await new Promise<Blob>((resolve) =>
@@ -265,6 +270,19 @@ export default function CapturePage() {
         </Link>
         <h1 className="text-xl font-bold">Atrapar</h1>
       </div>
+
+      {/* Flash overlay — Pokédex capture effect */}
+      <AnimatePresence>
+        {flash && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-50 bg-white pointer-events-none"
+          />
+        )}
+      </AnimatePresence>
 
       {/* Camera / Preview */}
       {!previewUrl ? (

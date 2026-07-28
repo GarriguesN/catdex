@@ -5,6 +5,7 @@ import { db, type Cat } from "@/lib/db";
 import { CatCard } from "@/components/CatCard";
 import { FAB } from "@/components/FAB";
 import { EmptyState } from "@/components/EmptyState";
+import { InstallBanner } from "@/components/InstallBanner";
 import { Search, ArrowUpDown } from "lucide-react";
 
 type SortMode = "recent" | "photos" | "alpha";
@@ -103,6 +104,7 @@ export default function HomePage() {
       )}
 
       <FAB />
+      <InstallBanner />
     </>
   );
 }
