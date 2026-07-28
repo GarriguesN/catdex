@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh flex flex-col bg-catdex-cream text-catdex-text bottom-nav-spacer">
         <AuthProvider>
           <ServiceWorkerRegister />
-          <main className="flex-1 px-3 sm:px-4 pb-4">{children}</main>
+          <main className="flex-1 w-full sm:max-w-lg sm:mx-auto px-4 pb-4">{children}</main>
           <BottomNav />
         </AuthProvider>
       </body>

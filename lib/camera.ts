@@ -1,6 +1,6 @@
 // Camera: getUserMedia + fallback <input capture>
 
-export async function openCamera(): Promise<MediaStream> {
+export async function openCamera(facing: "environment" | "user" = "environment"): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("Camera API not available");
   }
@@ -8,7 +8,7 @@ export async function openCamera(): Promise<MediaStream> {
   try {
     return await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: "environment",
+        facingMode: facing,
         width: { ideal: 1920 },
         height: { ideal: 1080 },
       },
@@ -16,6 +16,16 @@ export async function openCamera(): Promise<MediaStream> {
     });
   } catch (err) {
     throw new Error(`Camera access denied: ${(err as Error).message}`);
+  }
+}
+
+/** Best-effort torch toggle — silently ignored where unsupported. */
+export async function setTorch(stream: MediaStream, on: boolean): Promise<void> {
+  try {
+    const track = stream.getVideoTracks()[0];
+    await track?.applyConstraints({ advanced: [{ torch: on } as any] });
+  } catch {
+    /* not supported */
   }
 }
 

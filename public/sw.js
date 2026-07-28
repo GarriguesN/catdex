@@ -1,5 +1,5 @@
 // CatDex Service Worker — simple cache-first for shell, network-first for pages
-const CACHE_NAME = "catdex-v1";
+const CACHE_NAME = "catdex-v2";
 
 const STATIC_ASSETS = [
   "/",

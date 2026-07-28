@@ -1,70 +1,63 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Camera, MapPin, Check, AlertTriangle, ChevronRight } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Camera, MapPin, Bell, Mic, Check } from "lucide-react";
+import type { ReactNode } from "react";
+import clsx from "clsx";
+import { Logo } from "@/components/ui/Logo";
 
 const ONBOARDING_KEY = "catdex_onboarding_done";
+
+type PermKey = "camera" | "location" | "notifications" | "microphone";
+type PermStatus = "idle" | "granted" | "denied";
+
+const PERMISSIONS: { key: PermKey; icon: ReactNode; title: string; description: string }[] = [
+  { key: "camera", icon: <Camera className="h-5 w-5" />, title: "Cámara", description: "Para tomar fotos de gatos" },
+  { key: "location", icon: <MapPin className="h-5 w-5" />, title: "Ubicación", description: "Para guardar dónde encuentras a los gatos" },
+  { key: "notifications", icon: <Bell className="h-5 w-5" />, title: "Notificaciones", description: "Para recordatorios y logros" },
+  { key: "microphone", icon: <Mic className="h-5 w-5" />, title: "Micrófono", description: "Para sonidos al capturar" },
+];
 
 interface OnboardingModalProps {
   onComplete: () => void;
 }
 
-type Step = "camera" | "location" | "done";
-
+/** Permissions screen — friendly cards, one large CTA. */
 export function OnboardingModal({ onComplete }: OnboardingModalProps) {
-  const [step, setStep] = useState<Step>("camera");
-  const [cameraStatus, setCameraStatus] = useState<"idle" | "granted" | "denied">("idle");
-  const [locationStatus, setLocationStatus] = useState<"idle" | "granted" | "denied">("idle");
-  const [cameraMessage, setCameraMessage] = useState("");
-  const [locationMessage, setLocationMessage] = useState("");
+  const [status, setStatus] = useState<Record<PermKey, PermStatus>>({
+    camera: "idle",
+    location: "idle",
+    notifications: "idle",
+    microphone: "idle",
+  });
+  const [requesting, setRequesting] = useState(false);
 
-  const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
-  const isAndroid = /android/.test(navigator.userAgent.toLowerCase());
-
-  function getPermissionHelp(type: "camera" | "gps"): string {
-    const device = isIOS ? "iPhone" : isAndroid ? "dispositivo" : "navegador";
-    if (isIOS) {
-      return type === "camera"
-        ? "Ve a Ajustes > Safari (o CatDex) > Cámara y dale a Permitir"
-        : "Ve a Ajustes > Privacidad > Localización > Safari y actívala";
-    }
-    if (isAndroid) {
-      return type === "camera"
-        ? "Toca el candado en la barra de Chrome > Permisos > Cámara > Permitir"
-        : "Toca el candado en Chrome > Permisos > Ubicación > Permitir";
-    }
-    return "Revisa la configuración de permisos de tu navegador";
-  }
-
-  // ── Camera ──
-
-  const requestCamera = useCallback(async () => {
+  const request = useCallback(async (key: PermKey): Promise<PermStatus> => {
+    let result: PermStatus = "denied";
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(t => t.stop());
-      setCameraStatus("granted");
-      // Advance to next step after brief pause
-      setTimeout(() => setStep("location"), 600);
-    } catch (err: any) {
-      setCameraStatus("denied");
-      setCameraMessage(getPermissionHelp("camera"));
+      if (key === "camera" || key === "microphone") {
+        const stream = await navigator.mediaDevices.getUserMedia(
+          key === "camera" ? { video: true } : { audio: true }
+        );
+        stream.getTracks().forEach((t) => t.stop());
+        result = "granted";
+      } else if (key === "location") {
+        result = await new Promise<PermStatus>((resolve) =>
+          navigator.geolocation.getCurrentPosition(
+            () => resolve("granted"),
+            () => resolve("denied"),
+            { timeout: 8000 }
+          )
+        );
+      } else if (key === "notifications") {
+        const r = await Notification.requestPermission();
+        result = r === "granted" ? "granted" : "denied";
+      }
+    } catch {
+      result = "denied";
     }
-  }, []);
-
-  // ── Location ──
-
-  const requestLocation = useCallback(() => {
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        setLocationStatus("granted");
-        finish();
-      },
-      () => {
-        setLocationStatus("denied");
-        setLocationMessage(getPermissionHelp("gps"));
-      },
-      { timeout: 8000 }
-    );
+    setStatus((s) => ({ ...s, [key]: result }));
+    return result;
   }, []);
 
   function finish() {
@@ -72,129 +65,91 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
     onComplete();
   }
 
-  // ── Render ──
+  async function continueAll() {
+    setRequesting(true);
+    for (const p of PERMISSIONS) {
+      if (status[p.key] !== "granted") await request(p.key);
+    }
+    setRequesting(false);
+    finish();
+  }
 
   return (
-    <div className="fixed inset-0 z-50 bg-catdex-cream flex flex-col">
-      {/* Header — logo + progress */}
-      <div className="pt-12 pb-6 px-6 text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl border-2 border-catdex-border bg-white flex items-center justify-center shadow-sm">
-          <img src="/icon-192.png" alt="CatDex" className="w-12 h-12" />
+    <div className="fixed inset-0 z-50 bg-catdex-cream overflow-y-auto">
+      <div className="min-h-full flex flex-col items-center px-6 py-10 sm:max-w-lg sm:mx-auto">
+        {/* Hero: logo with floating feature icons */}
+        <div className="relative mt-4 mb-7">
+          <Logo size={104} />
+          <span className="absolute -top-2 -right-9 w-9 h-9 rounded-full bg-catdex-surface shadow-soft flex items-center justify-center animate-float">
+            <Camera className="h-4 w-4 text-catdex-orange" />
+          </span>
+          <span
+            className="absolute top-9 -left-11 w-9 h-9 rounded-full bg-catdex-surface shadow-soft flex items-center justify-center animate-float"
+            style={{ animationDelay: "0.6s" }}
+          >
+            <MapPin className="h-4 w-4 text-catdex-orange" />
+          </span>
+          <span
+            className="absolute -bottom-1 -right-11 w-9 h-9 rounded-full bg-catdex-surface shadow-soft flex items-center justify-center animate-float"
+            style={{ animationDelay: "1.2s" }}
+          >
+            <Bell className="h-4 w-4 text-catdex-orange" />
+          </span>
         </div>
-        <h1 className="text-xl font-bold text-catdex-text">¡Bienvenido a la colonia!</h1>
-        <p className="text-sm text-catdex-text-muted mt-1">
-          {step === "camera"
-            ? "Prepara tu cámara para empezar a capturar gatos"
-            : "Un último paso para el mapa colaborativo"}
+
+        <h1 className="text-[1.375rem] font-bold text-center leading-snug mb-2">
+          Para capturar gatos,
+          <br />
+          necesitamos tu permiso
+        </h1>
+        <p className="text-sm text-catdex-text-muted text-center max-w-xs leading-relaxed mb-7">
+          CatDex necesita acceder a algunas funciones de tu dispositivo para funcionar correctamente.
         </p>
-      </div>
 
-      {/* Step indicator */}
-      <div className="flex justify-center gap-2 mb-8">
-        <div className={`w-2.5 h-2.5 rounded-full transition-colors ${step === "camera" ? "bg-[#FC791A]" : "bg-[#6ABF95]"}`} />
-        <div className={`w-2.5 h-2.5 rounded-full transition-colors ${step === "location" ? "bg-[#FC791A]" : step === "done" ? "bg-[#6ABF95]" : "bg-[#A9A9A9]/30"}`} />
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 px-6 flex flex-col items-center justify-center -mt-12">
-        <div className="w-full max-w-sm space-y-6">
-          {/* Camera step */}
-          <div className={`card-pokedex p-5 transition-opacity ${step !== "camera" ? "opacity-40" : ""}`}>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-[#FC791A]/10 flex items-center justify-center flex-shrink-0">
-                <Camera className="h-5 w-5 text-[#FC791A]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm">Cámara</h3>
-                <p className="text-xs text-catdex-text-muted mt-0.5">
-                  Necesitamos tu cámara para fotografiar gatos salvajes
-                </p>
-
-                {cameraStatus === "idle" && (
-                  <button onClick={requestCamera} className="btn-pokedex w-full mt-4 text-sm">
-                    Activar Cámara
-                  </button>
-                )}
-
-                {cameraStatus === "granted" && (
-                  <div className="flex items-center gap-2 mt-3 text-[#6ABF95]">
-                    <Check className="h-4 w-4" />
-                    <span className="text-xs font-medium">¡Cámara lista!</span>
-                  </div>
-                )}
-
-                {cameraStatus === "denied" && (
-                  <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-100">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-red-600 leading-relaxed">{cameraMessage}</p>
-                    </div>
-                    <button onClick={requestCamera} className="btn-pokedex w-full mt-3 text-sm">
-                      Reintentar
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Location step */}
-          <div className={`card-pokedex p-5 transition-opacity ${step !== "location" ? "opacity-40" : ""}`}>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-[#FC791A]/10 flex items-center justify-center flex-shrink-0">
-                <MapPin className="h-5 w-5 text-[#FC791A]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm">Ubicación</h3>
-                <p className="text-xs text-catdex-text-muted mt-0.5">
-                  Los gatos aparecerán en el mapa colaborativo con tus amigos
-                </p>
-
-                {locationStatus === "idle" && (
-                  <div className="space-y-2 mt-4">
-                    <button onClick={requestLocation} className="btn-pokedex w-full text-sm">
-                      Activar GPS
-                    </button>
-                    <button onClick={finish} className="btn-pokedex-secondary w-full text-sm">
-                      Quizás más tarde (sin mapa)
-                    </button>
-                  </div>
-                )}
-
-                {locationStatus === "granted" && (
-                  <div className="flex items-center gap-2 mt-3 text-[#6ABF95]">
-                    <Check className="h-4 w-4" />
-                    <span className="text-xs font-medium">¡GPS listo!</span>
-                  </div>
-                )}
-
-                {locationStatus === "denied" && (
-                  <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-100">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-red-600 leading-relaxed">{locationMessage}</p>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <button onClick={requestLocation} className="btn-pokedex flex-1 text-xs">
-                        Reintentar
-                      </button>
-                      <button onClick={finish} className="btn-pokedex-secondary flex-1 text-xs">
-                        Sin mapa
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Permission cards */}
+        <div className="w-full space-y-3 mb-8">
+          {PERMISSIONS.map((p) => {
+            const st = status[p.key];
+            return (
+              <button
+                key={p.key}
+                onClick={() => request(p.key)}
+                className="w-full card p-4 flex items-center gap-4 text-left transition-transform active:scale-[0.99]"
+              >
+                <span className="w-10 h-10 rounded-xl bg-catdex-orange/10 flex items-center justify-center text-catdex-orange shrink-0">
+                  {p.icon}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[0.9375rem] font-semibold">{p.title}</span>
+                  <span className="block text-[0.8125rem] text-catdex-text-muted leading-snug">
+                    {p.description}
+                  </span>
+                </span>
+                <span
+                  className={clsx(
+                    "w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                    st === "granted"
+                      ? "bg-catdex-green-soft text-white"
+                      : st === "denied"
+                        ? "bg-catdex-red/15 text-catdex-red"
+                        : "bg-catdex-input-bg text-catdex-gray-light"
+                  )}
+                >
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                </span>
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Footer */}
-      <div className="p-6 text-center">
-        <p className="text-xs text-catdex-text-muted">
-          Puedes cambiar estos permisos en cualquier momento desde Ajustes
-        </p>
+        <div className="w-full mt-auto space-y-3 text-center">
+          <button onClick={continueAll} disabled={requesting} className="btn-primary w-full">
+            {requesting ? "Solicitando permisos…" : "Continuar"}
+          </button>
+          <button onClick={finish} className="btn-ghost w-full">
+            Ahora no
+          </button>
+        </div>
       </div>
     </div>
   );

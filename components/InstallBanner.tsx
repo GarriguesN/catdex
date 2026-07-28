@@ -31,30 +31,22 @@ export function InstallBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-16 left-3 right-3 z-50 bg-pokedex-gray-dark border border-pokedex-yellow/30 rounded-xl p-4 animate-pop-in shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:w-80">
-      <button
-        onClick={dismiss}
-        className="absolute top-2 right-2 p-1 rounded hover:bg-pokedex-gray-mid"
-      >
-        <X className="h-3.5 w-3.5 text-muted-foreground" />
+    <div className="fixed bottom-28 left-4 right-4 z-50 card p-4 animate-pop-in shadow-float sm:bottom-6 sm:left-auto sm:right-6 sm:w-80">
+      <button onClick={dismiss} className="absolute top-2.5 right-2.5 p-1.5 rounded-full text-catdex-gray-light active:bg-catdex-input-bg">
+        <X className="h-3.5 w-3.5" />
       </button>
 
       <div className="flex items-start gap-3">
-        <Share2 className="h-5 w-5 text-pokedex-yellow flex-shrink-0 mt-0.5" />
+        <span className="w-9 h-9 rounded-xl bg-catdex-orange/10 flex items-center justify-center shrink-0">
+          <Share2 className="h-4.5 w-4.5 text-catdex-orange" />
+        </span>
         <div>
-          <p className="text-sm font-semibold mb-1">
-            Instala CatDex en tu iPhone
+          <p className="text-sm font-semibold mb-1">Instala CatDex en tu iPhone</p>
+          <p className="text-xs text-catdex-text-muted leading-relaxed mb-2">
+            Toca <span className="font-semibold text-catdex-orange">Compartir</span> y luego{" "}
+            <strong>Añadir a pantalla de inicio</strong>. Así no perderás tus gatos.
           </p>
-          <p className="text-xs text-muted-foreground mb-2">
-            Toca <span className="text-pokedex-yellow">Compartir</span>{" "}
-            <span className="text-xs">↗</span> y luego{" "}
-            <strong>Añadir a pantalla de inicio</strong>.
-            Así no perderás tus gatos aunque pase una semana sin abrir la app.
-          </p>
-          <button
-            onClick={dismiss}
-            className="text-xs text-pokedex-blue hover:underline"
-          >
+          <button onClick={dismiss} className="text-xs font-semibold text-catdex-orange">
             Entendido
           </button>
         </div>

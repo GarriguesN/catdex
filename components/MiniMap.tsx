@@ -6,12 +6,18 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getPocketBase } from "@/lib/pocketbase";
 
-// @ts-expect-error
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+/** Orange teardrop pin with paw — matches the map design. */
+const pawPin = L.divIcon({
+  className: "cat-marker",
+  html: `<div style="
+    width:34px;height:34px;border-radius:50% 50% 50% 4px;
+    transform:rotate(-45deg);
+    background:#FF8A26;border:3px solid #FFFFFF;
+    box-shadow:0 4px 10px rgba(34,35,38,0.3);
+    display:flex;align-items:center;justify-content:center;
+  "><span style="transform:rotate(45deg);font-size:15px;">🐾</span></div>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 30],
 });
 
 function FitBoundsOnce({ photos }: { photos: { lat: number; lng: number }[] }) {
@@ -41,16 +47,16 @@ export default function MiniMap({ catId }: { catId: string }) {
     setLoading(false);
   }
 
-  if (loading) return <div className="skeleton h-32 w-full rounded-lg" />;
+  if (loading) return <div className="skeleton h-36 w-full rounded-2xl" />;
   if (photos.length === 0) return null;
 
   return (
-    <div className="rounded-lg overflow-hidden border-2 border-catdex-border" style={{ height: 160 }}>
+    <div className="rounded-2xl overflow-hidden" style={{ height: 160 }}>
       <MapContainer center={[photos[0].lat, photos[0].lng]} zoom={14} style={{ height: "100%", width: "100%" }}
-        zoomControl={false} scrollWheelZoom={false} dragging={true} touchZoom={false} doubleClickZoom={false} attributionControl={false}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        zoomControl={false} scrollWheelZoom={false} dragging={false} touchZoom={false} doubleClickZoom={false} attributionControl={false}>
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
         <FitBoundsOnce photos={photos} />
-        {photos.map((p, i) => <Marker key={i} position={[p.lat, p.lng]} />)}
+        {photos.map((p, i) => <Marker key={i} position={[p.lat, p.lng]} icon={pawPin} />)}
       </MapContainer>
     </div>
   );
