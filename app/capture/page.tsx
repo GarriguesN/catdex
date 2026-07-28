@@ -191,16 +191,6 @@ export default function CapturePage() {
     form.append("phash", hash);
     await pb.collection("photos").create(form);
 
-    // Award points
-    const userId = pb.authStore.record?.id;
-    if (userId) {
-      const user = await pb.collection("users").getOne(userId) as any;
-      const points = existingCatId ? 10 : 50; // +10 sighting, +50 discovery
-      await pb.collection("users").update(userId, {
-        score: (user.score || 0) + points,
-      });
-    }
-
     setSavedCatId(catId);
     setScreen("saved");
   }
