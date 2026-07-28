@@ -6,6 +6,7 @@ import { CatCard } from "@/components/CatCard";
 import { FAB } from "@/components/FAB";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
+import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
 import { Search, ArrowUpDown, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -26,10 +27,16 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("recent");
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    loadCats();
-  }, []);
+    // Check onboarding after session is available
+    if (session && !isOnboardingDone()) {
+      setShowOnboarding(true);
+    } else {
+      loadCats();
+    }
+  }, [session]);
 
   async function loadCats() {
     try {
@@ -60,6 +67,18 @@ export default function HomePage() {
   }
 
   const sortLabel = sort === "recent" ? "Recientes" : sort === "photos" ? "+Fotos" : "A-Z";
+
+  // ── Onboarding modal (after login, before app) ──
+  if (showOnboarding) {
+    return (
+      <OnboardingModal
+        onComplete={() => {
+          setShowOnboarding(false);
+          loadCats();
+        }}
+      />
+    );
+  }
 
   if (loading) {
     return (
