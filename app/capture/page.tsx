@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { normalizePhoto } from "@/lib/image";
 import { openCamera, captureFrame, isCameraAvailable } from "@/lib/camera";
-import { computeHashFromCanvas, suggestMatches } from "@/lib/capture";
+import { computeHashFromCanvas } from "@/lib/capture";
 import { generateCatName } from "@/lib/names";
 import { checkAchievements } from "@/lib/achievements";
 import { getCurrentPosition, formatCoords } from "@/lib/geo";
 import { generateUUID } from "@/lib/utils";
-import { MatchConfirm } from "@/components/MatchConfirm";
+import { CatPicker } from "@/components/CatPicker";
 import { BadgeUnlock } from "@/components/BadgeUnlock";
 import { ArrowLeft, Camera, Upload, Zap } from "lucide-react";
 import Link from "next/link";
@@ -23,14 +23,9 @@ export default function CapturePage() {
   const [cameraError, setCameraError] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [matchResult, setMatchResult] = useState<{
-    status: "strong" | "weak" | "none";
-    candidates: { catId: string; similarity: number; thumbBlobId: string; name?: string }[];
-  } | null>(null);
-  const [showMatch, setShowMatch] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [newBadges, setNewBadges] = useState<string[] | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pendingBlobRef = useRef<{
+  const pendingDataRef = useRef<{
     blob: Blob;
     thumbBlob: Blob;
     width: number;
@@ -40,21 +35,19 @@ export default function CapturePage() {
     lng?: number;
   } | null>(null);
 
-  // Start camera
+  // ── Camera ──────────────────────────────────────────────
+
   const startCamera = useCallback(async () => {
     setCameraError(false);
     try {
       const s = await openCamera();
       setStream(s);
-      if (videoRef.current) {
-        videoRef.current.srcObject = s;
-      }
+      if (videoRef.current) videoRef.current.srcObject = s;
     } catch {
       setCameraError(true);
     }
   }, []);
 
-  // Stop camera
   const stopCamera = useCallback(() => {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
@@ -62,14 +55,11 @@ export default function CapturePage() {
     }
   }, [stream]);
 
-  // Capture from video
   const captureFromVideo = useCallback(async () => {
     if (!videoRef.current) return;
     setCapturing(true);
-
     try {
       const canvas = captureFrame(videoRef.current);
-      canvasRef.current = canvas;
       const blob = await new Promise<Blob>((resolve) =>
         canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.9)
       );
@@ -80,7 +70,6 @@ export default function CapturePage() {
     }
   }, []);
 
-  // Handle file input
   const handleFileInput = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -93,15 +82,16 @@ export default function CapturePage() {
     []
   );
 
-  // Full capture pipeline
+  // ── Pipeline ────────────────────────────────────────────
+
   async function processCapture(file: Blob) {
     try {
-      // Normalize image
+      // 1. Normalize (resize + WebP/JPEG)
       const { blob, thumbBlob, width, height } = await normalizePhoto(
         new File([file], "capture.jpg", { type: file.type })
       );
 
-      // Compute pHash
+      // 2. Compute pHash (stored but NOT used for matching)
       const img = new Image();
       img.src = URL.createObjectURL(blob);
       await new Promise((r) => (img.onload = r));
@@ -111,102 +101,30 @@ export default function CapturePage() {
       c.getContext("2d")!.drawImage(img, 0, 0);
       const hash = await computeHashFromCanvas(c);
 
-      // GPS if available
+      // 3. GPS if available
       let lat: number | undefined;
       let lng: number | undefined;
       try {
         const pos = await getCurrentPosition();
-        const coords = formatCoords(
-          pos.coords.latitude,
-          pos.coords.longitude
-        );
+        const coords = formatCoords(pos.coords.latitude, pos.coords.longitude);
         lat = coords.lat;
         lng = coords.lng;
-      } catch {
-        // GPS not available — fine
-      }
+      } catch { /* no GPS */ }
 
-      // Store pending data
-      pendingBlobRef.current = { blob, thumbBlob, width, height, hash, lat, lng };
-
-      // Suggest matches
-      const match = await suggestMatches(hash);
-
-      // Enrich candidates with names
-      const enriched = await Promise.all(
-        match.candidates.map(async (mc) => {
-          const cat = await db.cats.get(mc.catId);
-          return { ...mc, name: cat?.name };
-        })
-      );
-
-      if (match.status === "none") {
-        // No matches — create new cat directly
-        await createCat(hash, blob, thumbBlob, width, height, lat, lng);
-        return;
-      }
-
-      setMatchResult({ ...match, candidates: enriched });
-      setShowMatch(true);
+      // 4. Store pending data, show manual picker
+      pendingDataRef.current = { blob, thumbBlob, width, height, hash, lat, lng };
+      setShowPicker(true);
     } catch (err) {
       console.error("Capture failed:", err);
       alert("Error al procesar la foto. Intenta de nuevo.");
     }
   }
 
-  async function createCat(
-    hash: string,
-    blob: Blob,
-    thumbBlob: Blob,
-    width: number,
-    height: number,
-    lat?: number,
-    lng?: number
-  ) {
-    const catId = generateUUID();
-    const photoId = generateUUID();
-    const name = await generateCatName();
+  // ── CatPicker callback ──────────────────────────────────
 
-    const cat = {
-      id: catId,
-      hash,
-      name,
-      createdAt: Date.now(),
-      lastSeen: Date.now(),
-      photoCount: 1,
-      thumbBlobId: photoId,
-      manuallyNamed: false,
-    };
-
-    const photo = {
-      id: photoId,
-      catId,
-      blob,
-      thumbBlob,
-      takenAt: Date.now(),
-      lat,
-      lng,
-      pHash: hash,
-      width,
-      height,
-      bytes: blob.size,
-    };
-
-    await db.cats.put(cat);
-    await db.photos.put(photo);
-
-    // Check achievements
-    const badges = await checkAchievements();
-    if (badges.length > 0) {
-      setNewBadges(badges.map((b) => b.id));
-    } else {
-      router.push(`/cat?id=${catId}`);
-    }
-  }
-
-  async function handleMatchConfirm(catId?: string) {
-    setShowMatch(false);
-    const pending = pendingBlobRef.current;
+  async function handleCatSelect(catId: string | null) {
+    setShowPicker(false);
+    const pending = pendingDataRef.current;
     if (!pending) return;
 
     if (catId) {
@@ -237,17 +155,45 @@ export default function CapturePage() {
       router.push(`/cat?id=${catId}`);
     } else {
       // New cat
-      await createCat(
-        pending.hash,
-        pending.blob,
-        pending.thumbBlob,
-        pending.width,
-        pending.height,
-        pending.lat,
-        pending.lng
-      );
+      const catId = generateUUID();
+      const photoId = generateUUID();
+      const name = await generateCatName();
+
+      await db.cats.put({
+        id: catId,
+        hash: pending.hash,
+        name,
+        createdAt: Date.now(),
+        lastSeen: Date.now(),
+        photoCount: 1,
+        thumbBlobId: photoId,
+        manuallyNamed: false,
+      });
+
+      await db.photos.put({
+        id: photoId,
+        catId,
+        blob: pending.blob,
+        thumbBlob: pending.thumbBlob,
+        takenAt: Date.now(),
+        lat: pending.lat,
+        lng: pending.lng,
+        pHash: pending.hash,
+        width: pending.width,
+        height: pending.height,
+        bytes: pending.blob.size,
+      });
+
+      const badges = await checkAchievements();
+      if (badges.length > 0) {
+        setNewBadges(badges.map((b) => b.id));
+      } else {
+        router.push(`/cat?id=${catId}`);
+      }
     }
   }
+
+  // ── Render ──────────────────────────────────────────────
 
   return (
     <div className="py-4 space-y-4">
@@ -296,16 +242,14 @@ export default function CapturePage() {
                 disabled={capturing}
                 className="absolute bottom-6 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-pokedex-red active:scale-90 transition-transform flex items-center justify-center"
               >
-                {capturing ? (
+                {capturing && (
                   <div className="w-8 h-8 border-4 border-pokedex-red border-t-transparent rounded-full animate-spin" />
-                ) : null}
+                )}
               </button>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-4 p-6">
-              <p className="text-sm text-muted-foreground">
-                Cámara no disponible
-              </p>
+              <p className="text-sm text-muted-foreground">Cámara no disponible</p>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="btn-pokedex-secondary flex items-center gap-2"
@@ -318,11 +262,7 @@ export default function CapturePage() {
         </div>
       ) : (
         <div className="relative aspect-[3/4] rounded-xl overflow-hidden">
-          <img
-            src={previewUrl}
-            alt="Preview"
-            className="w-full h-full object-cover"
-          />
+          <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
           {capturing && (
             <div className="absolute inset-0 bg-pokedex-black/50 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -334,7 +274,6 @@ export default function CapturePage() {
         </div>
       )}
 
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -344,21 +283,20 @@ export default function CapturePage() {
         onChange={handleFileInput}
       />
 
-      {/* Match confirmation modal */}
-      {showMatch && matchResult && (
-        <MatchConfirm
-          status={matchResult.status}
-          candidates={matchResult.candidates}
-          onConfirm={handleMatchConfirm}
+      {/* Manual cat picker */}
+      {showPicker && (
+        <CatPicker
+          onSelect={handleCatSelect}
           onCancel={() => {
-            setShowMatch(false);
+            setShowPicker(false);
             setPreviewUrl(null);
+            pendingDataRef.current = null;
             stopCamera();
           }}
         />
       )}
 
-      {/* Badge unlock modal */}
+      {/* Badge unlock */}
       {newBadges && (
         <BadgeUnlock
           achievementIds={newBadges}
