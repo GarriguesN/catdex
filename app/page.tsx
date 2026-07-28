@@ -8,7 +8,7 @@ import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
 import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
-import { Search, ArrowUpDown, LogOut } from "lucide-react";
+import { Search, ArrowUpDown, LogOut, Clock } from "lucide-react";
 
 interface Cat {
   id: string;
@@ -17,11 +17,20 @@ interface Cat {
   lastSeen: number;
   thumb?: string;
   discoveredBy?: string;
+  expand?: { discoveredBy?: { name?: string; email?: string } };
   collectionId?: string;
   collectionName?: string;
 }
 
 type SortMode = "recent" | "photos" | "alpha";
+
+interface FeedItem {
+  type: "discovery" | "sighting";
+  catId: string;
+  catName: string;
+  userName: string;
+  time: string;
+}
 
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
@@ -31,6 +40,7 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("recent");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -58,6 +68,46 @@ export default function HomePage() {
         lastSeen: new Date(item.updated || item.created).getTime(),
         photoCount: item.photoCount || 0,
       })));
+
+      // Build activity feed: recent discoveries + recent sightings
+      const feedItems: FeedItem[] = [];
+
+      // Recent discoveries (new cats)
+      const recentCats = await pb.collection("cats").getList(1, 10, {
+        sort: "-created",
+        expand: "discoveredBy",
+      });
+      for (const c of recentCats.items as any[]) {
+        const userName = c.expand?.discoveredBy?.name || "Alguien";
+        feedItems.push({
+          type: "discovery",
+          catId: c.id,
+          catName: c.name,
+          userName,
+          time: c.created,
+        });
+      }
+
+      // Recent sightings (new photos of existing cats)
+      const recentPhotos = await pb.collection("photos").getList(1, 10, {
+        sort: "-created",
+        expand: "user,cat",
+      });
+      for (const p of recentPhotos.items as any[]) {
+        const userName = p.expand?.user?.name || "Alguien";
+        const catName = p.expand?.cat?.name || "un gato";
+        feedItems.push({
+          type: "sighting",
+          catId: p.cat,
+          catName,
+          userName,
+          time: p.created,
+        });
+      }
+
+      // Sort by time, latest first, dedup same cat+user combo
+      feedItems.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      setFeed(feedItems.slice(0, 10));
     } catch (err) {
       console.error("Failed to load cats:", err);
     }
@@ -114,6 +164,33 @@ export default function HomePage() {
           </button>
         </div>
       </header>
+
+      {/* Activity feed */}
+      {feed.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Clock className="h-3.5 w-3.5 text-catdex-text-muted" />
+            <h2 className="text-xs font-semibold text-catdex-text-muted uppercase tracking-wide">Actividad reciente</h2>
+          </div>
+          <div className="card-pokedex divide-y divide-catdex-border">
+            {feed.slice(0, 5).map((item, i) => (
+              <a key={i} href={`/cat?id=${item.catId}`} className="block px-3 py-2 hover:bg-catdex-input-bg/50 transition-colors">
+                <p className="text-xs">
+                  <strong className="font-semibold">{item.userName}</strong>{" "}
+                  {item.type === "discovery" ? (
+                    <>ha descubierto un gato nuevo: <strong className="font-semibold text-catdex-orange">{item.catName}</strong></>
+                  ) : (
+                    <>ha avistado a <strong className="font-semibold">{item.catName}</strong></>
+                  )}
+                </p>
+                <p className="text-[10px] text-catdex-text-muted mt-0.5">
+                  {new Date(item.time).toLocaleDateString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
