@@ -121,115 +121,124 @@ body {
   padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── Card — soft, borderless, white ── */
-.card {
-  background: var(--color-catdex-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
-}
+/*
+ * Component classes live in @layer components so Tailwind utilities
+ * (which are also layered) can override individual properties like
+ * padding or border-radius — e.g. `field pl-10` or `skeleton rounded-none`.
+ * Unlayered CSS always beats layered CSS regardless of source order,
+ * so these must be inside a layer to stay overridable.
+ */
+@layer components {
+  /* ── Card — soft, borderless, white ── */
+  .card {
+    background: var(--color-catdex-surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-soft);
+  }
 
-/* ── Buttons ── */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  background: var(--color-catdex-orange);
-  color: #FFFFFF;
-  border-radius: 9999px;
-  padding: 0.875rem 1.5rem;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(255, 138, 38, 0.3);
-  transition: background 0.2s, transform 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
+  /* ── Buttons ── */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--color-catdex-orange);
+    color: #FFFFFF;
+    border-radius: 9999px;
+    padding: 0.875rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(255, 138, 38, 0.3);
+    transition: background 0.2s, transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-.btn-primary:active {
-  transform: scale(0.97);
-  background: var(--color-catdex-orange-dark);
-}
+  .btn-primary:active {
+    transform: scale(0.97);
+    background: var(--color-catdex-orange-dark);
+  }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  transform: none;
-}
+  .btn-primary:disabled {
+    opacity: 0.5;
+    transform: none;
+  }
 
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  background: var(--color-catdex-surface);
-  color: var(--color-catdex-text);
-  border: 1px solid var(--color-catdex-hairline);
-  border-radius: 9999px;
-  padding: 0.875rem 1.5rem;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  cursor: pointer;
-  box-shadow: var(--shadow-soft);
-  transition: background 0.2s, transform 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--color-catdex-surface);
+    color: var(--color-catdex-text);
+    border: 1px solid var(--color-catdex-hairline);
+    border-radius: 9999px;
+    padding: 0.875rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+    transition: background 0.2s, transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-.btn-secondary:active {
-  transform: scale(0.97);
-  background: var(--color-catdex-input-bg);
-}
+  .btn-secondary:active {
+    transform: scale(0.97);
+    background: var(--color-catdex-input-bg);
+  }
 
-.btn-secondary:disabled {
-  opacity: 0.5;
-  transform: none;
-}
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    transform: none;
+  }
 
-/* Ghost text button */
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  color: var(--color-catdex-text-muted);
-  font-weight: 500;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: color 0.2s;
-}
+  /* Ghost text button */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    color: var(--color-catdex-text-muted);
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
 
-.btn-ghost:active {
-  color: var(--color-catdex-text);
-}
+  .btn-ghost:active {
+    color: var(--color-catdex-text);
+  }
 
-/* ── Input ── */
-.field {
-  background: var(--color-catdex-surface);
-  border: 1px solid var(--color-catdex-hairline);
-  border-radius: var(--radius-field);
-  padding: 0.8125rem 1rem;
-  color: var(--color-catdex-text);
-  font-size: 0.9375rem;
-  width: 100%;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
+  /* ── Input ── */
+  .field {
+    background: var(--color-catdex-surface);
+    border: 1px solid var(--color-catdex-hairline);
+    border-radius: var(--radius-field);
+    padding: 0.8125rem 1rem;
+    color: var(--color-catdex-text);
+    font-size: 0.9375rem;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
 
-.field::placeholder {
-  color: var(--color-catdex-gray-light);
-}
+  .field::placeholder {
+    color: var(--color-catdex-gray-light);
+  }
 
-.field:focus {
-  border-color: var(--color-catdex-orange);
-  box-shadow: 0 0 0 3px rgba(255, 138, 38, 0.12);
-}
+  .field:focus {
+    border-color: var(--color-catdex-orange);
+    box-shadow: 0 0 0 3px rgba(255, 138, 38, 0.12);
+  }
 
-/* ── Skeleton ── */
-.skeleton {
-  background: var(--color-catdex-input-bg);
-  border-radius: var(--radius-card);
-  animation: pulse 1.5s ease-in-out infinite;
+  /* ── Skeleton ── */
+  .skeleton {
+    background: var(--color-catdex-input-bg);
+    border-radius: var(--radius-card);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
 }
 
 @keyframes pulse {
