@@ -6,14 +6,15 @@ import { ArrowLeft, Camera, Edit3, Trash2 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { getPocketBase } from "@/lib/pocketbase";
 
 const MiniMap = dynamic(() => import("@/components/MiniMap"), {
   ssr: false,
   loading: () => <div className="skeleton h-32 w-full rounded-lg" />,
 });
 
-interface Cat { id: string; name: string; notes?: string; manually_named: number; photo_count: number; created_at: number; thumb_blob_id: string; }
-interface Photo { id: string; cat_id: string; taken_at: number; lat?: number; lng?: number; }
+interface Cat { id: string; name: string; notes?: string; manuallyNamed?: boolean; photoCount?: number; created?: string; }
+interface Photo { id: string; cat?: string; taken_at?: number; lat?: number; lng?: number; photo?: string; }
 
 function CatDetailInner() {
   const searchParams = useSearchParams();
@@ -31,34 +32,29 @@ function CatDetailInner() {
 
   async function loadCat(catId: string) {
     try {
-      const res = await fetch(`/api/cats/${catId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCat(data);
-        setNameInput(data.name);
-        setNotesInput(data.notes || "");
-        setPhotos(data.photos || []);
-      }
+      const pb = getPocketBase();
+      const data = await pb.collection("cats").getOne(catId) as any;
+      setCat(data);
+      setNameInput(data.name || "");
+      setNotesInput(data.notes || "");
+      const photosResult = await pb.collection("photos").getFullList({ filter: `cat="${catId}"` });
+      setPhotos(photosResult.map((p: any) => p));
     } catch (err) { console.error(err); }
     setLoading(false);
   }
 
   async function saveName() {
     if (!cat || !nameInput.trim()) return;
-    await fetch(`/api/cats/${cat.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: nameInput.trim(), manuallyNamed: true }),
-    });
-    setCat({ ...cat, name: nameInput.trim(), manually_named: 1 });
+    const pb = getPocketBase();
+    await pb.collection("cats").update(cat.id, { name: nameInput.trim(), manuallyNamed: true });
+    setCat({ ...cat, name: nameInput.trim(), manuallyNamed: true });
     setEditingName(false);
   }
 
   async function saveNotes() {
     if (!cat) return;
-    await fetch(`/api/cats/${cat.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: notesInput }),
-    });
+    const pb = getPocketBase();
+    await pb.collection("cats").update(cat.id, { notes: notesInput });
     setCat({ ...cat, notes: notesInput });
     setEditingNotes(false);
   }
@@ -66,7 +62,11 @@ function CatDetailInner() {
   async function deleteCat() {
     if (!cat) return;
     if (!window.confirm(`¿Borrar a ${cat.name} y todas sus fotos?`)) return;
-    await fetch(`/api/cats/${cat.id}`, { method: "DELETE" });
+    const pb = getPocketBase();
+    // Delete photos first
+    const allPhotos = await pb.collection("photos").getFullList({ filter: `cat="${cat.id}"` });
+    for (const p of allPhotos) await pb.collection("photos").delete(p.id);
+    await pb.collection("cats").delete(cat.id);
     router.push("/");
   }
 
@@ -88,18 +88,18 @@ function CatDetailInner() {
           ) : (
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">{cat.name}</h1>
-              {!cat.manually_named && (
+              {!cat.manuallyNamed && (
                 <button onClick={() => setEditingName(true)} className="p-1 rounded hover:bg-catdex-input-bg"><Edit3 className="h-3.5 w-3.5 text-catdex-text-muted" /></button>
               )}
             </div>
           )}
-          <p className="text-xs text-catdex-text-muted">{cat.photo_count} foto{cat.photo_count !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-catdex-text-muted">{cat.photoCount || 0} foto{(cat.photoCount || 0) !== 1 ? "s" : ""}</p>
         </div>
       </div>
 
-      {cat.thumb_blob_id && (
+      {photos.length > 0 && photos[0].photo && (
         <div className="rounded-xl overflow-hidden border-2 border-catdex-border">
-          <img src={`/api/photos/${cat.thumb_blob_id}`} alt={cat.name} className="w-full aspect-video object-cover" />
+          <img src={`${getPocketBase().baseUrl}/api/files/photos/${photos[0].id}/${photos[0].photo}`} alt={cat.name} className="w-full aspect-video object-cover" />
         </div>
       )}
 
@@ -109,7 +109,7 @@ function CatDetailInner() {
           <div className="flex gap-2 overflow-x-auto pb-2 -mx-3 px-3">
             {photos.map(p => (
               <div key={p.id} className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 border-catdex-border">
-                <img src={`/api/photos/${p.id}?thumb=1`} alt="" className="w-full h-full object-cover" />
+                {p.photo && <img src={`${getPocketBase().baseUrl}/api/files/photos/${p.id}/${p.photo}?thumb=100x100`} alt="" className="w-full h-full object-cover" />}
               </div>
             ))}
           </div>

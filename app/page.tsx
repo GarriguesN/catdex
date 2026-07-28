@@ -1,27 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-provider";
+import { getPocketBase } from "@/lib/pocketbase";
 import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
 import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
 import { Search, ArrowUpDown, LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
 
 interface Cat {
   id: string;
   name: string;
-  photo_count: number;
-  last_seen: number;
-  thumb_blob_id: string;
-  manually_named: number;
+  photoCount: number;
+  lastSeen: number;
+  thumb?: string;
+  discoveredBy?: string;
+  collectionId?: string;
+  collectionName?: string;
 }
 
 type SortMode = "recent" | "photos" | "alpha";
 
 export default function HomePage() {
-  const { data: session } = useSession();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [cats, setCats] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -29,34 +33,50 @@ export default function HomePage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    // Check onboarding after session is available
-    if (session && !isOnboardingDone()) {
-      setShowOnboarding(true);
-    } else {
-      loadCats();
+    if (authLoading) return;
+    if (!user) {
+      router.replace("/login");
+      return;
     }
-  }, [session]);
+    if (!isOnboardingDone()) {
+      setShowOnboarding(true);
+      setLoading(false);
+      return;
+    }
+    loadCats();
+  }, [user, authLoading]);
 
   async function loadCats() {
     try {
-      const res = await fetch("/api/cats");
-      if (res.ok) {
-        const data = await res.json();
-        setCats(data);
-      }
+      const pb = getPocketBase();
+      const result = await pb.collection("cats").getList(1, 50, {
+        sort: "-created",
+        expand: "discoveredBy",
+      });
+      setCats(result.items.map((item: any) => ({
+        ...item,
+        lastSeen: new Date(item.updated || item.created).getTime(),
+        photoCount: item.photoCount || 0,
+      })));
     } catch (err) {
       console.error("Failed to load cats:", err);
     }
     setLoading(false);
   }
 
+  function handleLogout() {
+    const pb = getPocketBase();
+    pb.authStore.clear();
+    router.replace("/login");
+  }
+
   const filtered = cats
-    .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((c) => c.name?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       switch (sort) {
-        case "recent": return b.last_seen - a.last_seen;
-        case "photos": return b.photo_count - a.photo_count;
-        case "alpha": return a.name.localeCompare(b.name);
+        case "recent": return (b.lastSeen || 0) - (a.lastSeen || 0);
+        case "photos": return (b.photoCount || 0) - (a.photoCount || 0);
+        case "alpha": return (a.name || "").localeCompare(b.name || "");
         default: return 0;
       }
     });
@@ -67,19 +87,11 @@ export default function HomePage() {
 
   const sortLabel = sort === "recent" ? "Recientes" : sort === "photos" ? "+Fotos" : "A-Z";
 
-  // ── Onboarding modal (after login, before app) ──
   if (showOnboarding) {
-    return (
-      <OnboardingModal
-        onComplete={() => {
-          setShowOnboarding(false);
-          loadCats();
-        }}
-      />
-    );
+    return <OnboardingModal onComplete={() => { setShowOnboarding(false); loadCats(); }} />;
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="grid grid-cols-2 gap-3 pt-4">
         {[1, 2, 3, 4].map((i) => (
@@ -92,58 +104,37 @@ export default function HomePage() {
   return (
     <>
       <header className="py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-catdex-orange">
-            🐱 CatDex
-          </h1>
-        </div>
+        <h1 className="text-xl font-bold text-catdex-orange">🐱 CatDex</h1>
         <div className="flex items-center gap-2">
           <span className="text-sm text-catdex-text-muted">
             {cats.length} gato{cats.length !== 1 ? "s" : ""}
           </span>
-          {session?.user && (
-            <button
-              onClick={() => signOut()}
-              className="p-1.5 rounded-lg hover:bg-catdex-input-bg transition-colors"
-              title="Cerrar sesión"
-            >
-              <LogOut className="h-4 w-4 text-catdex-text-muted" />
-            </button>
-          )}
+          <button onClick={handleLogout} className="p-1.5 rounded-lg hover:bg-catdex-input-bg" title="Cerrar sesión">
+            <LogOut className="h-4 w-4 text-catdex-text-muted" />
+          </button>
         </div>
       </header>
 
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-catdex-text-muted" />
-          <input
-            className="input-pokedex pl-8"
-            placeholder="Buscar gato..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <input className="input-pokedex pl-8" placeholder="Buscar gato..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <button
-          onClick={cycleSort}
-          className="btn-pokedex-secondary flex items-center gap-1 text-xs whitespace-nowrap"
-        >
-          <ArrowUpDown className="h-3.5 w-3.5" />
-          {sortLabel}
+        <button onClick={cycleSort} className="btn-pokedex-secondary flex items-center gap-1 text-xs whitespace-nowrap">
+          <ArrowUpDown className="h-3.5 w-3.5" />{sortLabel}
         </button>
       </div>
 
       {filtered.length === 0 ? (
         search ? (
-          <p className="text-center text-catdex-text-muted py-12">
-            No hay gatos que coincidan con &ldquo;{search}&rdquo;
-          </p>
+          <p className="text-center text-catdex-text-muted py-12">No hay gatos que coincidan con &ldquo;{search}&rdquo;</p>
         ) : (
           <EmptyState />
         )
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {filtered.map((cat) => (
-            <CatCard key={cat.id} cat={cat} />
+            <CatCard key={cat.id} cat={{ id: cat.id, name: cat.name, photo_count: cat.photoCount, thumb_blob_id: cat.thumb || "" }} />
           ))}
         </div>
       )}

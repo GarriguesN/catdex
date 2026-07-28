@@ -1,20 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { SessionProvider } from "./SessionProvider";
-import { auth } from "@/lib/auth";
+import { AuthProvider } from "@/lib/auth-provider";
+import { BottomNav } from "@/components/BottomNav";
 
 export const metadata: Metadata = {
   title: "CatDex",
-  description: "🐱 Atrapa gatos como en una Pokédex real.",
+  description: "🐱 Atrapa gatos como en una Pokédex real. Compite con tus amigos.",
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "CatDex",
-  },
-  other: {
-    "mobile-web-app-capable": "yes",
-  },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "CatDex" },
+  other: { "mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
@@ -26,13 +20,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const session = await auth();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="h-full antialiased">
       <head>
@@ -42,7 +30,10 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className="min-h-dvh flex flex-col bg-catdex-cream text-catdex-text bottom-nav-spacer">
-        <SessionProvider session={session}>{children}</SessionProvider>
+        <AuthProvider>
+          <main className="flex-1 px-3 sm:px-4 pb-4">{children}</main>
+          <BottomNav />
+        </AuthProvider>
       </body>
     </html>
   );

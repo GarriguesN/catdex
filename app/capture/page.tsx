@@ -8,6 +8,7 @@ import { generateCatName } from "@/lib/names";
 import { generateUUID } from "@/lib/utils";
 import { getBlurCopy, getNotCatCopy } from "@/lib/copy";
 import { classifyPhoto } from "@/lib/classifier";
+import { getPocketBase } from "@/lib/pocketbase";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
 import { DetectingScreen } from "@/components/capture/DetectingScreen";
 import { NotCatScreen } from "@/components/capture/NotCatScreen";
@@ -117,23 +118,25 @@ export default function CapturePage() {
     const thumbBlob = pendingThumbBlobRef.current;
     if (!blob || !thumbBlob) return;
 
-    const catId = generateUUID();
     const name = generateCatName();
+    const pb = getPocketBase();
 
-    await fetch("/api/cats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: catId, name }),
+    // Create cat record
+    const cat = await pb.collection("cats").create({
+      name,
+      photoCount: 1,
+      discoveredBy: pb.authStore.record?.id,
     });
 
+    // Upload photo as FormData
     const form = new FormData();
-    form.append("catId", catId);
-    form.append("photo", blob);
-    form.append("thumb", thumbBlob);
+    form.append("cat", cat.id);
+    form.append("user", pb.authStore.record?.id || "");
+    form.append("photo", new File([blob], "photo.webp", { type: "image/webp" }));
+    form.append("thumb", new File([thumbBlob], "thumb.webp", { type: "image/webp" }));
+    await pb.collection("photos").create(form);
 
-    await fetch("/api/photos", { method: "POST", body: form });
-
-    setSavedCatId(catId);
+    setSavedCatId(cat.id);
     setScreen("saved");
   }
 
