@@ -33,7 +33,7 @@ export function CatPicker({ suggestedIds, onSelect, onCancel }: CatPickerProps) 
         expand: "discoveredBy",
       });
       setCats(result.items as unknown as Cat[]);
-    } catch {}
+    } catch (err) { console.error("Failed to load cats for picker:", err); }
     setLoading(false);
   }
 

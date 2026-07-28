@@ -26,7 +26,7 @@ export default function StatsPage() {
         fields: "id,name,score",
       });
       setUsers(usersResult.filter((u: any) => (u.score || 0) > 0) as unknown as User[]);
-    } catch {}
+    } catch (err) { console.error("Failed to load stats:", err); }
     setLoading(false);
   }
 

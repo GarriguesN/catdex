@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-provider";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getPocketBase } from "@/lib/pocketbase";
 import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
@@ -33,7 +34,7 @@ interface FeedItem {
 }
 
 export default function HomePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useRequireAuth();
   const router = useRouter();
   const [cats, setCats] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,11 +44,7 @@ export default function HomePage() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
+    if (authLoading || !user) return;
     if (!isOnboardingDone()) {
       setShowOnboarding(true);
       setLoading(false);
