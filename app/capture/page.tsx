@@ -62,6 +62,8 @@ export default function CapturePage() {
   const captureFromVideo = useCallback(async () => {
     if (!videoRef.current) return;
     setCapturing(true);
+    // Shutter sound
+    import("@/lib/sounds").then(({ playShutterSound }) => playShutterSound());
     try {
       const canvas = captureFrame(videoRef.current);
       const blob = await new Promise<Blob>((resolve) =>
@@ -160,6 +162,10 @@ export default function CapturePage() {
 
       // 5. Gate: warn if not a cat or low quality
       if (result.quality !== "good") {
+        // Play miss sound if not a cat; blur/low-conf doesn't need sound
+        if (result.quality === "not_cat") {
+          import("@/lib/sounds").then(({ playMissSound }) => playMissSound());
+        }
         setShowClassWarning(true);
         return;
       }
@@ -177,6 +183,8 @@ export default function CapturePage() {
 
   async function handleCatSelect(catId: string | null) {
     setShowPicker(false);
+    // Capture success sound
+    import("@/lib/sounds").then(({ playCaptureSound }) => playCaptureSound());
     const pending = pendingDataRef.current;
     if (!pending) return;
 

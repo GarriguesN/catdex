@@ -12,13 +12,15 @@ export function BadgeUnlock({ achievementIds, onClose }: BadgeUnlockProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // Trigger confetti + vibration
+    // Trigger confetti + vibration + sound
     setVisible(true);
     try {
       navigator.vibrate?.([100, 50, 200]);
     } catch {
       // vibration not supported
     }
+    // Sound
+    import("@/lib/sounds").then(({ playBadgeSound }) => playBadgeSound());
     // Dynamic import confetti (small)
     import("canvas-confetti").then((confetti) => {
       confetti.default({
