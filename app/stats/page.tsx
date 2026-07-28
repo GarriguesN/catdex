@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Trophy, Medal } from "lucide-react";
 import Link from "next/link";
 import { getPocketBase } from "@/lib/pocketbase";
 import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
 
 interface Cat { id: string; name: string; photoCount: number; }
+interface User { id: string; name: string; score: number; }
 
 export default function StatsPage() {
   const [cats, setCats] = useState<Cat[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadData(); }, []);
@@ -19,6 +21,12 @@ export default function StatsPage() {
       const pb = getPocketBase();
       const result = await pb.collection("cats").getFullList();
       setCats(result.map((c: any) => ({ id: c.id, name: c.name, photoCount: c.photoCount || 0 })));
+
+      const usersResult = await pb.collection("users").getFullList({
+        sort: "-score",
+        fields: "id,name,score",
+      });
+      setUsers(usersResult.filter((u: any) => (u.score || 0) > 0) as unknown as User[]);
     } catch {}
     setLoading(false);
   }
@@ -39,6 +47,30 @@ export default function StatsPage() {
         <div><p className="text-2xl font-bold text-catdex-orange">{cats.length}</p><p className="text-xs text-catdex-text-muted">Gatos</p></div>
         <div><p className="text-2xl font-bold text-catdex-blue">{totalPhotos}</p><p className="text-xs text-catdex-text-muted">Fotos</p></div>
       </div>
+
+      {/* Leaderboard */}
+      {users.length > 0 && (
+        <div className="card-pokedex p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy className="h-4 w-4 text-catdex-yellow" />
+            <h2 className="text-sm font-semibold text-catdex-text-muted">Ranking</h2>
+          </div>
+          <div className="space-y-2">
+            {users.slice(0, 10).map((u, i) => (
+              <div key={u.id} className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-catdex-input-bg flex items-center justify-center text-xs font-bold">
+                  {i === 0 ? <Medal className="h-3.5 w-3.5 text-yellow-400" /> :
+                   i === 1 ? <span className="text-gray-400">{i + 1}</span> :
+                   i === 2 ? <span className="text-amber-600">{i + 1}</span> :
+                   <span className="text-catdex-text-muted">{i + 1}</span>}
+                </div>
+                <p className="flex-1 text-sm font-medium truncate">{u.name || "Sin nombre"}</p>
+                <p className="text-sm font-bold text-catdex-orange">{u.score} pts</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {topCat && (
         <div className="card-pokedex p-4">
