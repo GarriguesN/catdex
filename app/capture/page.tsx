@@ -8,6 +8,7 @@ import { generateCatName } from "@/lib/names";
 import { generateUUID } from "@/lib/utils";
 import { getBlurCopy, getNotCatCopy } from "@/lib/copy";
 import { classifyPhoto } from "@/lib/classifier";
+import { computePHash, hammingDistance, similarity } from "@/lib/phash";
 import { getPocketBase } from "@/lib/pocketbase";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
 import { DetectingScreen } from "@/components/capture/DetectingScreen";
@@ -16,7 +17,14 @@ import { SavedScreen } from "@/components/capture/SavedScreen";
 import { ArrowLeft, Zap, Upload, Camera } from "lucide-react";
 import Link from "next/link";
 
-type Screen = "camera" | "blur" | "detecting" | "notcat" | "saved";
+type Screen = "camera" | "blur" | "detecting" | "notcat" | "matching" | "saved";
+
+interface MatchCandidate {
+  id: string;
+  name: string;
+  similarity: number;
+  photoCount?: number;
+}
 
 export default function CapturePage() {
   const router = useRouter();
@@ -31,6 +39,7 @@ export default function CapturePage() {
   const [notCatCopy, setNotCatCopy] = useState({ title: "", subtitle: "" });
   const [isSpecificAnimal, setIsSpecificAnimal] = useState(false);
   const [savedCatId, setSavedCatId] = useState<string | null>(null);
+  const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([]);
 
   const pendingBlobRef = useRef<Blob | null>(null);
   const pendingThumbBlobRef = useRef<Blob | null>(null);
@@ -109,34 +118,80 @@ export default function CapturePage() {
       return;
     }
 
-    // 4. Save
-    await saveCat();
+    // 4. Classification passed — compute pHash and search global DB
+    setScreen("detecting");
+
+    // Compute pHash from the canvas we already have
+    const hash = await computePHash(getImageData(bc));
+    const pb = getPocketBase();
+
+    // Search PocketBase for similar cats by hash
+    const allCats = await pb.collection("cats").getFullList({ fields: "id,name,hash,photoCount" });
+    const candidates: MatchCandidate[] = allCats
+      .filter((c: any) => c.hash && c.hash.length === 16)
+      .map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        similarity: similarity(hash, c.hash),
+        photoCount: c.photoCount || 0,
+      }))
+      .filter((c: MatchCandidate) => c.similarity > 60)
+      .sort((a: MatchCandidate, b: MatchCandidate) => b.similarity - a.similarity)
+      .slice(0, 5);
+
+    // Store hash for later save
+    pendingBlobRef.current = blob;
+    pendingThumbBlobRef.current = thumbBlob;
+    // Also store hash
+    (pendingBlobRef as any).hash = hash;
+
+    if (candidates.length > 0) {
+      setMatchCandidates(candidates);
+      setScreen("matching");
+    } else {
+      // No matches — create new cat directly
+      await saveCat(null);
+    }
   }
 
-  async function saveCat() {
+  async function saveCat(existingCatId: string | null = null) {
     const blob = pendingBlobRef.current;
     const thumbBlob = pendingThumbBlobRef.current;
     if (!blob || !thumbBlob) return;
 
-    const name = generateCatName();
+    const hash = (pendingBlobRef as any).hash || "";
     const pb = getPocketBase();
 
-    // Create cat record
-    const cat = await pb.collection("cats").create({
-      name,
-      photoCount: 1,
-      discoveredBy: pb.authStore.record?.id,
-    });
+    let catId = existingCatId;
 
-    // Upload photo as FormData
+    if (!catId) {
+      // New cat
+      const name = generateCatName();
+      const cat = await pb.collection("cats").create({
+        name,
+        hash,
+        photoCount: 1,
+        discoveredBy: pb.authStore.record?.id,
+      });
+      catId = cat.id;
+    } else {
+      // Existing cat — update photo count
+      const cat = await pb.collection("cats").getOne(catId) as any;
+      await pb.collection("cats").update(catId, {
+        photoCount: (cat.photoCount || 0) + 1,
+        hash, // Update hash with latest photo's hash
+      });
+    }
+
     const form = new FormData();
-    form.append("cat", cat.id);
+    form.append("cat", catId!);
     form.append("user", pb.authStore.record?.id || "");
     form.append("photo", new File([blob], "photo.webp", { type: "image/webp" }));
     form.append("thumb", new File([thumbBlob], "thumb.webp", { type: "image/webp" }));
+    form.append("phash", hash);
     await pb.collection("photos").create(form);
 
-    setSavedCatId(cat.id);
+    setSavedCatId(catId);
     setScreen("saved");
   }
 
@@ -248,9 +303,36 @@ export default function CapturePage() {
           isSpecific={isSpecificAnimal}
           photoUrl={previewUrl!}
           onRetry={resetCapture}
-          onUseAnyway={saveCat}
+          onUseAnyway={() => saveCat(null)}
           onClose={resetCapture}
         />
+      )}
+
+      {screen === "matching" && (
+        <div className="fixed inset-0 z-50 bg-catdex-cream flex flex-col animate-pop-in">
+          <div className="p-4 border-b-2 border-catdex-border flex items-center gap-3">
+            <button onClick={resetCapture} className="btn-pokedex-secondary text-xs px-3 py-1.5">Cancelar</button>
+            <h2 className="text-lg font-bold flex-1">¿Es uno de estos?</h2>
+            <button onClick={() => saveCat(null)} className="btn-pokedex text-xs px-3 py-1.5">Nuevo gato</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {matchCandidates.map(c => (
+              <button
+                key={c.id}
+                onClick={() => saveCat(c.id)}
+                className="w-full card-pokedex p-3 flex items-center gap-3 text-left active:scale-[0.99]"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{c.name}</p>
+                  <p className="text-xs text-catdex-text-muted">{c.photoCount} fotos · {c.similarity.toFixed(0)}% match</p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-catdex-orange/10 flex items-center justify-center text-sm font-bold text-catdex-orange">
+                  {c.similarity.toFixed(0)}%
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </>
   );
