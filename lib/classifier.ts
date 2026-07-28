@@ -44,9 +44,36 @@ function isCatClass(className: string): boolean {
   for (const catClass of CAT_CLASSES) {
     if (lower.includes(catClass)) return true;
   }
-  // Keywords
+  // Cat-related keywords for detection
   const catKeywords = ["cat", "tabby", "kitten", "kitty", "feline", "tiger", "lion", "lynx", "leopard", "cheetah", "jaguar", "cougar", "panther", "ocelot", "bobcat", "caracal"];
   return catKeywords.some((kw) => lower.includes(kw));
+}
+
+// Pokédex-style messages — playful, thematic, with actionable hints
+const POKEDEX_MESSAGES = {
+  not_cat: [
+    "¡Se te ha escapado! Esto no es un gato… 🍃",
+    "¡Oh! Parece que no era un Pokémon gatuno… 🐶",
+    "¡Vaya! Eso no ronronea. Apunta mejor 🔭",
+    "La Pokédex no reconoce esta criatura… ¿seguro que es un gato? 🤔",
+  ],
+  blurry: [
+    "¡Está muy lejos! Intenta acercarte más 🔍",
+    "No se ve bien… ¿pruebas desde otro ángulo? 📐",
+    "¡Demasiado borroso! Como cuando se mueven de repente 💨",
+    "Así no hay quien lo identifique… ¡Acércate un poco! 🐾",
+  ],
+  low_confidence: [
+    "Mmm… no está claro. ¿Repetimos la foto? 📸",
+    "Podría ser un gato… o una bolsa de basura. Mejor otra foto 🗑️",
+    "Los gatos son escurridizos. ¿Pruebas otra vez? 🐱",
+    "No termino de verlo claro… ¿Le haces otra? 👀",
+  ],
+  not_cat_hard: "¡Un {class} salvaje apareció! Pero… esto es CatDex, no {class}Dex 😅",
+};
+
+function pickRandom(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 export interface ClassificationResult {
@@ -102,12 +129,16 @@ export async function classifyPhoto(
     const confidence = top.probability * 100;
 
     if (!isCat) {
+      // Try to extract a friendly name from the class
+      const shortClass = top.className.split(",")[0].trim();
+      const hardMessage = POKEDEX_MESSAGES.not_cat_hard
+        .replace(/\{class\}/g, shortClass);
       return {
         isCat: false,
         topClass: top.className,
         confidence,
         quality: "not_cat",
-        message: `Esto parece "${top.className}" (${confidence.toFixed(0)}%), no un gato. ¿Seguro que quieres guardarlo?`,
+        message: hardMessage,
       };
     }
 
@@ -117,7 +148,7 @@ export async function classifyPhoto(
         topClass: top.className,
         confidence,
         quality: "blurry",
-        message: `Parece un gato (${top.className}, ${confidence.toFixed(0)}%), pero la foto está borrosa o lejana. ¿Repetir?`,
+        message: pickRandom(POKEDEX_MESSAGES.blurry),
       };
     }
 
@@ -127,7 +158,7 @@ export async function classifyPhoto(
         topClass: top.className,
         confidence,
         quality: "low_confidence",
-        message: `Detectado como "${top.className}" con ${confidence.toFixed(0)}% de confianza. ¿Continuar?`,
+        message: pickRandom(POKEDEX_MESSAGES.low_confidence),
       };
     }
 

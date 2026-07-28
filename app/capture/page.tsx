@@ -308,12 +308,12 @@ export default function CapturePage() {
       {showClassWarning && classification && (
         <div className="fixed inset-0 z-50 bg-pokedex-black/95 flex flex-col items-center justify-center p-6 animate-pop-in">
           <span className="text-5xl mb-4">
-            {classification.quality === "not_cat" ? "🧐" : "📸"}
+            {classification.quality === "not_cat" ? "💨" : "🔍"}
           </span>
           <h2 className="text-lg font-bold mb-2 text-center">
             {classification.quality === "not_cat"
-              ? "Esto no parece un gato"
-              : "Foto mejorable"}
+              ? "¡Se te ha escapado!"
+              : "Mmm… 🤔"}
           </h2>
           <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
             {classification.message}
