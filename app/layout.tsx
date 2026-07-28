@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-provider";
 import { BottomNav } from "@/components/BottomNav";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
   title: "CatDex",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh flex flex-col bg-catdex-cream text-catdex-text bottom-nav-spacer">
         <AuthProvider>
+          <ServiceWorkerRegister />
           <main className="flex-1 px-3 sm:px-4 pb-4">{children}</main>
           <BottomNav />
         </AuthProvider>
