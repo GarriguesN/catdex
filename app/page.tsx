@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-provider";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getPocketBase } from "@/lib/pocketbase";
 import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
-import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
 import { Search, ArrowUpDown, LogOut, Clock } from "lucide-react";
 
 interface Cat {
@@ -33,51 +32,40 @@ interface FeedItem {
 }
 
 export default function HomePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useRequireAuth();
   const router = useRouter();
   const [cats, setCats] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("recent");
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [feed, setFeed] = useState<FeedItem[]>([]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    if (!isOnboardingDone()) {
-      setShowOnboarding(true);
-      setLoading(false);
-      return;
-    }
+    if (authLoading || !user) return;
     loadCats();
   }, [user, authLoading]);
 
   async function loadCats() {
     try {
       const pb = getPocketBase();
+
+      // Single cats query for both grid + discovery feed
       const result = await pb.collection("cats").getList(1, 50, {
         sort: "-created",
         expand: "discoveredBy",
       });
-      setCats(result.items.map((item: any) => ({
+      const catItems = result.items.map((item: any) => ({
         ...item,
         lastSeen: new Date(item.updated || item.created).getTime(),
         photoCount: item.photoCount || 0,
-      })));
+      }));
+      setCats(catItems);
 
-      // Build activity feed: recent discoveries + recent sightings
+      // Build feed from single cats query + recent photos
       const feedItems: FeedItem[] = [];
 
-      // Recent discoveries (new cats)
-      const recentCats = await pb.collection("cats").getList(1, 10, {
-        sort: "-created",
-        expand: "discoveredBy",
-      });
-      for (const c of recentCats.items as any[]) {
+      // Discoveries from the cats we already fetched
+      for (const c of catItems.slice(0, 10)) {
         const userName = c.expand?.discoveredBy?.name || "Alguien";
         feedItems.push({
           type: "discovery",
@@ -88,7 +76,7 @@ export default function HomePage() {
         });
       }
 
-      // Recent sightings (new photos of existing cats)
+      // Recent sightings (separate query — different collection)
       const recentPhotos = await pb.collection("photos").getList(1, 10, {
         sort: "-created",
         expand: "user,cat",
@@ -105,7 +93,6 @@ export default function HomePage() {
         });
       }
 
-      // Sort by time, latest first, dedup same cat+user combo
       feedItems.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
       setFeed(feedItems.slice(0, 10));
     } catch (err) {
@@ -136,10 +123,6 @@ export default function HomePage() {
   }
 
   const sortLabel = sort === "recent" ? "Recientes" : sort === "photos" ? "+Fotos" : "A-Z";
-
-  if (showOnboarding) {
-    return <OnboardingModal onComplete={() => { setShowOnboarding(false); loadCats(); }} />;
-  }
 
   if (loading || authLoading) {
     return (

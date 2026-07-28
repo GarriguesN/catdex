@@ -63,7 +63,7 @@ function MapPageInner() {
 
       enriched.sort((a, b) => b.takenAt - a.takenAt);
       setMarkers(enriched);
-    } catch {}
+    } catch (err) { console.error("Failed to load markers:", err); }
     setLoading(false);
   }
 

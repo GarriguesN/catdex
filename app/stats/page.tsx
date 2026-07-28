@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Trophy, Medal } from "lucide-react";
 import Link from "next/link";
 import { getPocketBase } from "@/lib/pocketbase";
-import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
 
 interface Cat { id: string; name: string; photoCount: number; }
 interface User { id: string; name: string; score: number; }
@@ -27,7 +26,7 @@ export default function StatsPage() {
         fields: "id,name,score",
       });
       setUsers(usersResult.filter((u: any) => (u.score || 0) > 0) as unknown as User[]);
-    } catch {}
+    } catch (err) { console.error("Failed to load stats:", err); }
     setLoading(false);
   }
 
@@ -82,17 +81,6 @@ export default function StatsPage() {
         </div>
       )}
 
-      <div>
-        <h2 className="text-sm font-semibold text-catdex-text-muted mb-3">Badges</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {Object.entries(ACHIEVEMENT_DEFS).map(([id, def]) => (
-            <div key={id} className="card-pokedex p-2.5 text-center opacity-40 grayscale">
-              <span className="text-2xl block mb-1">❓</span>
-              <p className="text-[10px] font-medium">{def.name}</p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

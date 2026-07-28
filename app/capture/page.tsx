@@ -10,6 +10,7 @@ import { getBlurCopy, getNotCatCopy } from "@/lib/copy";
 import { classifyPhoto } from "@/lib/classifier";
 import { computePHash, hammingDistance, similarity } from "@/lib/phash";
 import { getPocketBase } from "@/lib/pocketbase";
+import { CatPicker } from "@/components/CatPicker";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
 import { DetectingScreen } from "@/components/capture/DetectingScreen";
 import { NotCatScreen } from "@/components/capture/NotCatScreen";
@@ -40,6 +41,7 @@ export default function CapturePage() {
   const [isSpecificAnimal, setIsSpecificAnimal] = useState(false);
   const [savedCatId, setSavedCatId] = useState<string | null>(null);
   const [matchCandidates, setMatchCandidates] = useState<MatchCandidate[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
 
   const pendingBlobRef = useRef<Blob | null>(null);
   const pendingThumbBlobRef = useRef<Blob | null>(null);
@@ -118,40 +120,27 @@ export default function CapturePage() {
       return;
     }
 
-    // 4. Classification passed — compute pHash and search global DB
+    // 4. Classification passed — compute pHash, then show manual CatPicker
+    //    (pHash used ONLY as sort hint, NOT as inclusion/exclusion filter)
     setScreen("detecting");
 
-    // Compute pHash from the canvas we already have
     const hash = await computePHash(getImageData(bc));
     const pb = getPocketBase();
 
-    // Search PocketBase for similar cats by hash
-    const allCats = await pb.collection("cats").getFullList({ fields: "id,name,hash,photoCount" });
-    const candidates: MatchCandidate[] = allCats
+    // Get all cats, sorted by pHash similarity as hint
+    const allCats = await pb.collection("cats").getFullList({ fields: "id,name,hash" });
+    const scored = allCats
       .filter((c: any) => c.hash && c.hash.length === 16)
-      .map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        similarity: similarity(hash, c.hash),
-        photoCount: c.photoCount || 0,
-      }))
-      .filter((c: MatchCandidate) => c.similarity > 60)
-      .sort((a: MatchCandidate, b: MatchCandidate) => b.similarity - a.similarity)
-      .slice(0, 5);
+      .map((c: any) => ({ id: c.id, sim: similarity(hash, c.hash) }))
+      .sort((a: any, b: any) => b.sim - a.sim);
 
-    // Store hash for later save
+    // Store hash + suggested order
     pendingBlobRef.current = blob;
     pendingThumbBlobRef.current = thumbBlob;
-    // Also store hash
     (pendingBlobRef as any).hash = hash;
 
-    if (candidates.length > 0) {
-      setMatchCandidates(candidates);
-      setScreen("matching");
-    } else {
-      // No matches — create new cat directly
-      await saveCat(null);
-    }
+    setMatchCandidates(scored.map((c: any) => ({ id: c.id, name: "", similarity: c.sim })));
+    setShowPicker(true);
   }
 
   async function saveCat(existingCatId: string | null = null) {
@@ -190,16 +179,6 @@ export default function CapturePage() {
     form.append("thumb", new File([thumbBlob], "thumb.webp", { type: "image/webp" }));
     form.append("phash", hash);
     await pb.collection("photos").create(form);
-
-    // Award points
-    const userId = pb.authStore.record?.id;
-    if (userId) {
-      const user = await pb.collection("users").getOne(userId) as any;
-      const points = existingCatId ? 10 : 50; // +10 sighting, +50 discovery
-      await pb.collection("users").update(userId, {
-        score: (user.score || 0) + points,
-      });
-    }
 
     setSavedCatId(catId);
     setScreen("saved");
@@ -318,31 +297,19 @@ export default function CapturePage() {
         />
       )}
 
-      {screen === "matching" && (
-        <div className="fixed inset-0 z-50 bg-catdex-cream flex flex-col animate-pop-in">
-          <div className="p-4 border-b-2 border-catdex-border flex items-center gap-3">
-            <button onClick={resetCapture} className="btn-pokedex-secondary text-xs px-3 py-1.5">Cancelar</button>
-            <h2 className="text-lg font-bold flex-1">¿Es uno de estos?</h2>
-            <button onClick={() => saveCat(null)} className="btn-pokedex text-xs px-3 py-1.5">Nuevo gato</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {matchCandidates.map(c => (
-              <button
-                key={c.id}
-                onClick={() => saveCat(c.id)}
-                className="w-full card-pokedex p-3 flex items-center gap-3 text-left active:scale-[0.99]"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{c.name}</p>
-                  <p className="text-xs text-catdex-text-muted">{c.photoCount} fotos · {c.similarity.toFixed(0)}% match</p>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-catdex-orange/10 flex items-center justify-center text-sm font-bold text-catdex-orange">
-                  {c.similarity.toFixed(0)}%
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* CatPicker — always shown after classification, pHash-ordered */}
+      {showPicker && (
+        <CatPicker
+          suggestedIds={matchCandidates.map(c => c.id)}
+          onSelect={(catId) => {
+            setShowPicker(false);
+            saveCat(catId);
+          }}
+          onCancel={() => {
+            setShowPicker(false);
+            resetCapture();
+          }}
+        />
       )}
     </>
   );

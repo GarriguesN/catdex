@@ -1,4 +1,5 @@
 // Image normalization: resize + WebP conversion with JPEG fallback
+import { parse } from "exifr";
 
 export async function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -18,10 +19,17 @@ export async function normalizePhoto(file: File): Promise<{
   const img = await loadImage(file);
   const canvas = document.createElement("canvas");
 
-  // Resize to max 1920x1080 preserving aspect ratio
-  const MAX_W = 1920;
-  const MAX_H = 1080;
+  // EXIF orientation: browsers auto-correct orientation in <img> + drawImage()
+  // since ~2020. The dimensions may need swapping for rotated images (orient 5-8).
+  const orientation = await parse(file, ["Orientation"]).catch(() => ({})) as any;
+  const orient = orientation?.Orientation || 1;
+  const swapDimensions = orient >= 5 && orient <= 8;
+
   let { width, height } = img;
+
+  // Resize to max 1920x1080 preserving aspect ratio
+  const MAX_W = swapDimensions ? 1080 : 1920;
+  const MAX_H = swapDimensions ? 1920 : 1080;
   if (width > MAX_W || height > MAX_H) {
     const ratio = Math.min(MAX_W / width, MAX_H / height);
     width = Math.round(width * ratio);

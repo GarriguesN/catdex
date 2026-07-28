@@ -26,7 +26,10 @@ export default function SettingsPage() {
   async function deleteAll() {
     try {
       const pb = getPocketBase();
-      const cats = await pb.collection("cats").getFullList();
+      const userId = pb.authStore.record?.id;
+      const cats = await pb.collection("cats").getFullList({
+        filter: `discoveredBy="${userId}"`,
+      });
       for (const cat of cats) {
         await pb.collection("cats").delete(cat.id);
       }

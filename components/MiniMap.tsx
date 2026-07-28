@@ -37,7 +37,7 @@ export default function MiniMap({ catId }: { catId: string }) {
         filter: `cat="${catId}" && lat!=null`,
       });
       setPhotos(result.map((p: any) => ({ lat: p.lat, lng: p.lng })));
-    } catch {}
+    } catch (err) { console.error("Failed to load mini map photos:", err); }
     setLoading(false);
   }
 

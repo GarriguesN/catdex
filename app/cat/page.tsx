@@ -13,7 +13,7 @@ const MiniMap = dynamic(() => import("@/components/MiniMap"), {
   loading: () => <div className="skeleton h-32 w-full rounded-lg" />,
 });
 
-interface Cat { id: string; name: string; notes?: string; manuallyNamed?: boolean; photoCount?: number; created?: string; }
+interface Cat { id: string; name: string; notes?: string; manuallyNamed?: boolean; photoCount?: number; created?: string; discoveredBy?: string; }
 interface Photo { id: string; cat?: string; taken_at?: number; lat?: number; lng?: number; photo?: string; }
 
 function CatDetailInner() {
@@ -73,8 +73,12 @@ function CatDetailInner() {
   if (loading) return <div className="py-8 space-y-4"><div className="skeleton h-64 w-full rounded-xl" /></div>;
   if (!cat) return <div className="empty-state"><p className="text-4xl mb-4">😿</p><p>Gato no encontrado</p><Link href="/" className="btn-pokedex mt-4 inline-block">Volver</Link></div>;
 
-  const hasLocation = photos.some(p => p.lat && p.lng);
+  const pb = getPocketBase();
+  const userId = pb.authStore.record?.id;
+  const isOwner = cat.discoveredBy === userId;
+  const baseUrl = pb.baseUrl;
 
+  const hasLocation = photos.some(p => p.lat && p.lng);
   return (
     <div className="py-4 space-y-5">
       <div className="flex items-center gap-3">
@@ -88,7 +92,7 @@ function CatDetailInner() {
           ) : (
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">{cat.name}</h1>
-              {!cat.manuallyNamed && (
+              {isOwner && !cat.manuallyNamed && (
                 <button onClick={() => setEditingName(true)} className="p-1 rounded hover:bg-catdex-input-bg"><Edit3 className="h-3.5 w-3.5 text-catdex-text-muted" /></button>
               )}
             </div>
@@ -126,26 +130,28 @@ function CatDetailInner() {
         </div>
       )}
 
-      <div className="card-pokedex p-3">
-        <h3 className="text-xs font-semibold text-catdex-text-muted mb-1.5">Notas</h3>
-        {editingNotes ? (
-          <div className="space-y-2">
-            <textarea className="input-pokedex min-h-[80px] resize-y" value={notesInput} onChange={e => setNotesInput(e.target.value)} autoFocus />
-            <div className="flex gap-2">
-              <button onClick={saveNotes} className="btn-pokedex text-xs">Guardar</button>
-              <button onClick={() => { setNotesInput(cat.notes || ""); setEditingNotes(false); }} className="btn-pokedex-secondary text-xs">Cancelar</button>
+      {isOwner && (
+        <div className="card-pokedex p-3">
+          <h3 className="text-xs font-semibold text-catdex-text-muted mb-1.5">Notas</h3>
+          {editingNotes ? (
+            <div className="space-y-2">
+              <textarea className="input-pokedex min-h-[80px] resize-y" value={notesInput} onChange={e => setNotesInput(e.target.value)} autoFocus />
+              <div className="flex gap-2">
+                <button onClick={saveNotes} className="btn-pokedex text-xs">Guardar</button>
+                <button onClick={() => { setNotesInput(cat.notes || ""); setEditingNotes(false); }} className="btn-pokedex-secondary text-xs">Cancelar</button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <p className="text-sm text-catdex-text-muted cursor-pointer" onClick={() => setEditingNotes(true)}>{cat.notes || "Añade notas..."}</p>
-        )}
-      </div>
+          ) : (
+            <p className="text-sm text-catdex-text-muted cursor-pointer" onClick={() => setEditingNotes(true)}>{cat.notes || "Añade notas..."}</p>
+          )}
+        </div>
+      )}
 
-      <div className="flex gap-2">
+      {isOwner && (
         <button onClick={deleteCat} className="btn-pokedex-secondary text-xs flex items-center gap-1.5 text-red-400">
           <Trash2 className="h-3.5 w-3.5" />Borrar
         </button>
-      </div>
+      )}
     </div>
   );
 }
