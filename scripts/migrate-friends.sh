@@ -7,7 +7,11 @@
 #   1. Adds `city` (text) to photos.
 #   2. Adds `inviteCode` (text, unique index) to users.
 #   3. Creates the `friendships` collection with its rules (skips if present).
-#   4. Backfills invite codes for existing users (new users get one from
+#   4. Creates the `achievements` collection if missing — despite the
+#      original plan assuming it already existed in production, a local
+#      test against the live instance 404'd on it, so this is no longer
+#      assumed (skips if present).
+#   5. Backfills invite codes for existing users (new users get one from
 #      pb_hooks/invite-codes.pb.js).
 #
 # Usage: PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... bash migrate-friends.sh
@@ -107,7 +111,31 @@ else
   }" | python3 -c "import sys,json; print('  friendships:', json.load(sys.stdin).get('id','ERR'))"
 fi
 
-# ── 4. Backfill invite codes for existing users ──
+# ── 4. achievements collection ──
+ACH_ID=$(get_coll_id achievements)
+if [ -n "$ACH_ID" ]; then
+  echo "achievements collection already exists ($ACH_ID)"
+else
+  echo "Creating achievements collection..."
+  curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+    \"name\": \"achievements\",
+    \"type\": \"base\",
+    \"fields\": [
+      {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+      {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+      {\"name\":\"badgeCode\",\"type\":\"text\",\"required\":true},
+      {\"name\":\"unlockedAt\",\"type\":\"number\",\"required\":true},
+      {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+      {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
+    ],
+    \"listRule\": \"@request.auth.id != ''\",
+    \"viewRule\": \"@request.auth.id != ''\",
+    \"createRule\": null,
+    \"updateRule\": null
+  }" | python3 -c "import sys,json; print('  achievements:', json.load(sys.stdin).get('id','ERR'))"
+fi
+
+# ── 5. Backfill invite codes for existing users ──
 echo "Backfilling invite codes..."
 curl -s "$BASE/api/collections/users/records?perPage=500&fields=id,inviteCode" -H "$H" \
   | python3 -c "
