@@ -7,6 +7,17 @@ import { Logo } from "@/components/ui/Logo";
 
 type Mode = "login" | "register";
 
+/** Keeps only the last (correctly filled) redirect_uri if the auth URL has duplicates. */
+function dedupeRedirectUri(url: string): string {
+  const u = new URL(url);
+  const values = u.searchParams.getAll("redirect_uri").filter(Boolean);
+  if (values.length > 0) {
+    u.searchParams.delete("redirect_uri");
+    u.searchParams.set("redirect_uri", values[values.length - 1]);
+  }
+  return u.toString();
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -40,21 +51,28 @@ export default function LoginPage() {
   }
 
   async function loginWithOAuth(provider: "google" | "apple") {
-    if (provider !== "google") {
-      setError("Apple no disponible aún");
-      return;
-    }
     setLoading(true);
+    setError("");
+    setNotice("");
+    // The pocketbase JS SDK's default popup flow can emit a duplicated
+    // (first empty) redirect_uri param, which OAuth providers reject as
+    // missing. Open the popup ourselves and sanitize the URL it's sent to.
+    const popup = window.open("", "popup_window", "width=500,height=650,resizable,menubar=no");
     try {
       const pb = getPocketBase();
-      const methods = await pb.collection("users").listAuthMethods();
-      const p = (methods as any).oauth2?.providers?.[0];
-      if (!p) throw new Error("Google not available");
-      // PocketBase's authURL has all PKCE params EXCEPT redirect_uri — add it
-      const url = p.authUrl + "&redirect_uri=" + encodeURIComponent("https://catdex.nglab.es/pb/api/oauth2-redirect");
-      window.location.href = url;
-    } catch (e: any) {
-      console.error("OAuth error:", e);
+      await pb.collection("users").authWithOAuth2({
+        provider,
+        scopes: ["profile", "email"],
+        urlCallback: (url) => {
+          const fixedUrl = dedupeRedirectUri(url);
+          if (popup && !popup.closed) popup.location.href = fixedUrl;
+          else window.location.href = fixedUrl;
+        },
+      });
+      done();
+    } catch (err: any) {
+      popup?.close();
+      setError(err?.message || `No se ha podido conectar con ${provider === "google" ? "Google" : "Apple"}`);
       setLoading(false);
     }
   }
