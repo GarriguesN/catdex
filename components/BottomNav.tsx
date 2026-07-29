@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import type React from "react";
 import clsx from "clsx";
-import { Cat, MapPin, BarChart3, Settings } from "lucide-react";
+import { Cat, MapPin, User, Settings } from "lucide-react";
 
 type NavItemDef = {
   href: string;
@@ -19,7 +19,7 @@ const LEFT_ITEMS: NavItemDef[] = [
 ];
 
 const RIGHT_ITEMS: NavItemDef[] = [
-  { href: "/stats", label: "Stats", icon: BarChart3 },
+  { href: "/profile", label: "Perfil", icon: User },
   { href: "/settings", label: "Ajustes", icon: Settings },
 ];
 

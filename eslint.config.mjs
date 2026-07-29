@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // PocketBase server-side hooks — run in PocketBase's JSVM (goja) with
+    // its own globals ($app, routerAdd, …) and CommonJS require; not app code.
+    "pb_hooks/**",
   ]),
 ]);
 

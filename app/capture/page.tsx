@@ -8,6 +8,7 @@ import { normalizePhoto, blurScore, getImageData } from "@/lib/image";
 import { openCamera, captureFrame, isCameraAvailable, setTorch } from "@/lib/camera";
 import { generateCatName } from "@/lib/names";
 import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
+import { reverseGeocode } from "@/lib/geo";
 import { classifyPhoto, preloadClassifier } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
 import { getPocketBase } from "@/lib/pocketbase";
@@ -44,6 +45,7 @@ export default function CapturePage() {
   const pendingThumbBlobRef = useRef<Blob | null>(null);
   const pendingHashRef = useRef<string>("");
   const positionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const cityPromiseRef = useRef<Promise<string> | null>(null);
   const savingRef = useRef(false);
 
   // ── Camera lifecycle ──
@@ -83,6 +85,9 @@ export default function CapturePage() {
     navigator.geolocation?.getCurrentPosition(
       (pos) => {
         positionRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        // Resolve the city now so it's ready by save time — best-effort,
+        // a failure just means the photo saves with city="".
+        cityPromiseRef.current = reverseGeocode(pos.coords.latitude, pos.coords.longitude);
       },
       () => {},
       { timeout: 10000, maximumAge: 60000 }
@@ -292,6 +297,13 @@ export default function CapturePage() {
       if (positionRef.current) {
         form.append("lat", String(positionRef.current.lat));
         form.append("lng", String(positionRef.current.lng));
+        // Usually resolved long before the user reaches save; cap the wait
+        // so a slow Nominatim can never hold the capture flow hostage.
+        const city = await Promise.race([
+          cityPromiseRef.current ?? Promise.resolve(""),
+          new Promise<string>((r) => setTimeout(() => r(""), 3000)),
+        ]);
+        if (city) form.append("city", city);
       }
       await pb.collection("photos").create(form, { requestKey: null });
 

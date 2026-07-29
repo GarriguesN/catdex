@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Flame, Trophy, Heart, ChevronDown, TrendingUp, Medal } from "lucide-react";
 import { getPocketBase } from "@/lib/pocketbase";
 import { getFavorites } from "@/lib/favorites";
+import { TopBar } from "@/components/ui/TopBar";
 import { Card } from "@/components/ui/Card";
 import { LineChart } from "@/components/ui/LineChart";
 import { ProgressRing } from "@/components/ui/ProgressRing";
@@ -30,7 +31,9 @@ interface RankUser {
   score: number;
 }
 
-export default function StatsPage() {
+/** "Estadísticas completas" — the growth chart, places ring and ranking that
+ * lived in /stats, now behind "Ver todos" in the profile summary card. */
+export default function FullStatsPage() {
   const [photos, setPhotos] = useState<PhotoRec[]>([]);
   const [catCreatedDates, setCatCreatedDates] = useState<Date[]>([]);
   const [users, setUsers] = useState<RankUser[]>([]);
@@ -151,17 +154,21 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="pt-3 space-y-4">
-      <header className="flex items-center justify-between pb-1">
-        <h1 className="text-[1.375rem] font-bold tracking-tight">Stats</h1>
-        <button
-          onClick={() => setPeriodSheetOpen(true)}
-          className="inline-flex items-center gap-1.5 bg-catdex-surface shadow-soft rounded-full px-4 py-2 text-[0.8125rem] font-semibold"
-        >
-          {PERIOD_LABEL[period]}
-          <ChevronDown className="h-3.5 w-3.5 text-catdex-gray-light" />
-        </button>
-      </header>
+    <div className="space-y-4">
+      <TopBar
+        back
+        backHref="/profile"
+        title="Estadísticas"
+        actions={
+          <button
+            onClick={() => setPeriodSheetOpen(true)}
+            className="inline-flex items-center gap-1.5 bg-catdex-surface shadow-soft rounded-full px-4 py-2 text-[0.8125rem] font-semibold"
+          >
+            {PERIOD_LABEL[period]}
+            <ChevronDown className="h-3.5 w-3.5 text-catdex-gray-light" />
+          </button>
+        }
+      />
 
       {/* Collection growth */}
       <Card>

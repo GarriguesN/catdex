@@ -15,16 +15,25 @@ export interface MapMarkerData {
   lat: number;
   lng: number;
   takenAt: number;
+  /** Own capture (orange ring) vs a friend's (blue ring). */
+  isOwn: boolean;
+  /** Friend's display name — only set for friend captures. */
+  ownerName?: string;
 }
 
-/** Circular photo pin with orange ring (falls back to paw dot). */
-function createCatIcon(thumbUrl: string | null): L.DivIcon {
+const OWN_RING = "#FF8A26"; // --color-catdex-orange
+const FRIEND_RING = "#3B82F6"; // --color-catdex-blue
+const MIXED_CLUSTER = "#A9A9A9"; // --color-catdex-gray-light
+
+/** Circular photo pin — orange ring for own captures, blue for friends' (falls back to paw dot). */
+function createCatIcon(thumbUrl: string | null, isOwn: boolean): L.DivIcon {
+  const ring = isOwn ? OWN_RING : FRIEND_RING;
   return L.divIcon({
     className: "cat-marker",
     html: `<div style="
       width:44px;height:44px;border-radius:50%;
       border:3px solid #FFFFFF;
-      box-shadow:0 0 0 2px #FF8A26, 0 4px 10px rgba(34,35,38,0.25);
+      box-shadow:0 0 0 2px ${ring}, 0 4px 10px rgba(34,35,38,0.25);
       overflow:hidden;background:#FFF7EF;
       ${thumbUrl ? `background-image:url(${thumbUrl});background-size:cover;background-position:center;` : ""}
       display:flex;align-items:center;justify-content:center;font-size:20px;
@@ -34,14 +43,15 @@ function createCatIcon(thumbUrl: string | null): L.DivIcon {
   });
 }
 
-/** Orange circle with white count — cluster pin. */
-function createClusterIcon(count: number): L.DivIcon {
+/** Circle with white count — cluster pin. Orange = own only, blue = friends
+ * only, neutral gray when mixed so the color never lies about composition. */
+function createClusterIcon(count: number, color: string): L.DivIcon {
   const size = count >= 10 ? 44 : 38;
   return L.divIcon({
     className: "cluster-marker",
     html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
-      background:#FF8A26;border:3px solid #FFFFFF;
+      background:${color};border:3px solid #FFFFFF;
       box-shadow:0 4px 10px rgba(34,35,38,0.25);
       display:flex;align-items:center;justify-content:center;
       color:#FFF;font-weight:700;font-size:15px;
@@ -111,11 +121,14 @@ function ClusteredMarkers({
     <>
       {clusters.map((c, i) => {
         if (c.items.length > 1) {
+          const hasOwn = c.items.some((m) => m.isOwn);
+          const hasFriend = c.items.some((m) => !m.isOwn);
+          const color = hasOwn && hasFriend ? MIXED_CLUSTER : hasOwn ? OWN_RING : FRIEND_RING;
           return (
             <Marker
               key={`cluster-${i}-${c.items.length}`}
               position={[c.lat, c.lng]}
-              icon={createClusterIcon(c.items.length)}
+              icon={createClusterIcon(c.items.length, color)}
               eventHandlers={{
                 click: () => map.setView([c.lat, c.lng], Math.min(map.getZoom() + 2, 18), { animate: true }),
               }}
@@ -130,7 +143,7 @@ function ClusteredMarkers({
           <Marker
             key={m.id}
             position={[m.lat, m.lng]}
-            icon={createCatIcon(thumbUrl)}
+            icon={createCatIcon(thumbUrl, m.isOwn)}
             eventHandlers={{ click: () => onMarkerClick(m) }}
           />
         );

@@ -30,7 +30,7 @@ echo "Getting collection IDs..."
 USERS_ID=$(curl -s "$BASE/api/collections?filter=(name='users')" -H "$H" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
 
 # Drop existing if recreating
-for coll in photos achievements cats; do
+for coll in photos achievements friendships cats; do
   ID=$(curl -s "$BASE/api/collections?filter=(name='$coll')" -H "$H" | python3 -c "import sys,json; items=json.load(sys.stdin)['items']; print(items[0]['id'] if items else '')" 2>/dev/null)
   if [ -n "$ID" ]; then
     curl -s -X DELETE "$BASE/api/collections/$ID" -H "$H" > /dev/null
@@ -72,6 +72,7 @@ PHOTOS_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
     {\"name\":\"thumb\",\"type\":\"file\",\"maxSize\":524288,\"mimeTypes\":[\"image/jpeg\",\"image/png\",\"image/webp\"]},
     {\"name\":\"lat\",\"type\":\"number\"},
     {\"name\":\"lng\",\"type\":\"number\"},
+    {\"name\":\"city\",\"type\":\"text\"},
     {\"name\":\"phash\",\"type\":\"text\"},
     {\"name\":\"width\",\"type\":\"number\"},
     {\"name\":\"height\",\"type\":\"number\"},
@@ -102,5 +103,46 @@ ACH_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
   \"createRule\": null,
   \"updateRule\": null
 }" | python3 -c "import sys,json; print('achievements:', json.load(sys.stdin).get('id','ERR'))")
+
+# ── friendships ──
+# updateRule: only the addressee may flip pending → accepted (the hook in
+# pb_hooks/friendships.pb.js additionally blocks duplicates and field edits).
+# deleteRule: either side can cancel/decline/unfriend — modeled as row delete.
+FRIEND_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"friendships\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"requester\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"addressee\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"status\",\"type\":\"select\",\"required\":true,\"maxSelect\":1,\"values\":[\"pending\",\"accepted\"]},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+    {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
+  ],
+  \"listRule\": \"@request.auth.id != '' && (requester = @request.auth.id || addressee = @request.auth.id)\",
+  \"viewRule\": \"@request.auth.id != '' && (requester = @request.auth.id || addressee = @request.auth.id)\",
+  \"createRule\": \"@request.auth.id != '' && requester = @request.auth.id && requester != addressee\",
+  \"updateRule\": \"@request.auth.id != '' && addressee = @request.auth.id\",
+  \"deleteRule\": \"@request.auth.id != '' && (requester = @request.auth.id || addressee = @request.auth.id)\"
+}" | python3 -c "import sys,json; print('friendships:', json.load(sys.stdin).get('id','ERR'))")
+
+# ── users: inviteCode field + unique index ──
+echo "Patching users with inviteCode..."
+curl -s "$BASE/api/collections/$USERS_ID" -H "$H" | python3 -c "
+import sys, json
+c = json.load(sys.stdin)
+patch = {}
+if not any(f['name'] == 'inviteCode' for f in c['fields']):
+    patch['fields'] = c['fields'] + [{'name': 'inviteCode', 'type': 'text'}]
+idx = \"CREATE UNIQUE INDEX idx_users_inviteCode ON users (inviteCode) WHERE inviteCode != ''\"
+if not any('idx_users_inviteCode' in i for i in c.get('indexes', [])):
+    patch['indexes'] = c.get('indexes', []) + [idx]
+print(json.dumps(patch))
+" > /tmp/users_patch.json
+if [ "$(cat /tmp/users_patch.json)" != "{}" ]; then
+  curl -s -X PATCH "$BASE/api/collections/$USERS_ID" -H "$H" -H "$CT" -d @/tmp/users_patch.json > /dev/null
+  echo "users: inviteCode added"
+fi
+rm -f /tmp/users_patch.json
 
 echo "✅ Setup complete with security rules."

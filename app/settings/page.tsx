@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Bell, Volume2, Lock, FileUp, Info, Trophy } from "lucide-react";
+import { User, Bell, Volume2, Lock, FileUp, Info } from "lucide-react";
 import { TopBar } from "@/components/ui/TopBar";
 import { SettingsGroup, SettingsRow } from "@/components/ui/SettingsRow";
 import { areSoundsEnabled } from "@/lib/sound-prefs";
@@ -33,7 +33,6 @@ export default function SettingsPage() {
 
       <SettingsGroup>
         <SettingsRow icon={<FileUp className="h-5 w-5" />} label="Exportar datos" href="/settings/export" />
-        <SettingsRow icon={<Trophy className="h-5 w-5" />} label="Logros" href="/settings/achievements" />
         <SettingsRow
           icon={<Info className="h-5 w-5" />}
           label="Acerca de CatDex"

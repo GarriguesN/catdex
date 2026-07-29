@@ -1,12 +1,13 @@
 // CatDex Service Worker — simple cache-first for shell, network-first for pages
-const CACHE_NAME = "catdex-v2";
+const CACHE_NAME = "catdex-v3";
 
 const STATIC_ASSETS = [
   "/",
   "/capture",
   "/cat",
   "/map",
-  "/stats",
+  "/profile",
+  "/friends",
   "/settings",
   "/manifest.json",
   "/icon-192.png",

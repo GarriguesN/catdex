@@ -31,3 +31,24 @@ export function formatCoords(lat: number, lng: number): {
     lng: roundCoord(lng),
   };
 }
+
+/**
+ * Best-effort reverse geocoding via Nominatim (OpenStreetMap) — one call per
+ * capture, well under their 1 req/s policy. Browsers forbid a custom
+ * User-Agent header, so the page Referer identifies the app instead.
+ * Returns "" on any failure — callers must never block on this.
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=10&accept-language=es`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return "";
+    const data = await res.json();
+    const a = data.address || {};
+    return a.city || a.town || a.village || a.municipality || a.county || "";
+  } catch {
+    return "";
+  }
+}

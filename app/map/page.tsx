@@ -6,8 +6,11 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { getPocketBase } from "@/lib/pocketbase";
+import { listFriends } from "@/lib/friends";
+import { isShowFriendsEnabled, setShowFriendsEnabled } from "@/lib/map-prefs";
 import { IconButton } from "@/components/ui/IconButton";
 import { Sheet } from "@/components/ui/Sheet";
+import { Toggle } from "@/components/ui/Toggle";
 import type { MapMarkerData } from "@/components/LeafletMap";
 
 const LazyMap = dynamic(() => import("@/components/LeafletMap"), {
@@ -27,35 +30,65 @@ function MapPageInner() {
   const [loading, setLoading] = useState(true);
   const [selectedMarker, setSelectedMarker] = useState<MapMarkerData | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+
+  useEffect(() => {
+    setShowFriends(isShowFriendsEnabled());
+  }, []);
 
   useEffect(() => {
     loadMarkers();
-  }, [filterCatId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCatId, showFriends]);
 
   async function loadMarkers() {
     setLoading(true);
     try {
       const pb = getPocketBase();
-      const filters = filterCatId ? `cat="${filterCatId}"` : "lat!=null";
-      const result = await pb.collection("photos").getList(1, 200, {
-        filter: filters,
-        sort: "-created",
-        expand: "cat",
-      });
+      const myId = pb.authStore.record?.id || "";
+      const catClause = filterCatId ? ` && cat="${filterCatId}"` : "";
+
+      // Own captures + (optionally) friends' — two queries merged client-side,
+      // each marker tagged with isOwn for the ring color.
+      const queries = [
+        pb.collection("photos").getList(1, 200, {
+          filter: `user="${myId}" && lat!=null${catClause}`,
+          sort: "-created",
+          expand: "cat,user",
+        }),
+      ];
+      if (showFriends) {
+        const friends = await listFriends().catch(() => []);
+        if (friends.length > 0) {
+          const friendClause = friends.map((f) => `user="${f.friend.id}"`).join(" || ");
+          queries.push(
+            pb.collection("photos").getList(1, 200, {
+              filter: `(${friendClause}) && lat!=null${catClause}`,
+              sort: "-created",
+              expand: "cat,user",
+            })
+          );
+        }
+      }
+      const results = await Promise.all(queries);
 
       const enriched: MapMarkerData[] = [];
-      for (const p of result.items as any[]) {
-        if (p.lat && p.lng) {
-          enriched.push({
-            id: p.id,
-            catId: p.cat,
-            catName: p.expand?.cat?.name || "Gato",
-            thumbFieldName: p.thumb || p.photo || undefined,
-            photoId: p.id,
-            lat: p.lat,
-            lng: p.lng,
-            takenAt: new Date(p.created).getTime(),
-          });
+      for (const result of results) {
+        for (const p of result.items as any[]) {
+          if (p.lat && p.lng) {
+            enriched.push({
+              id: p.id,
+              catId: p.cat,
+              catName: p.expand?.cat?.name || "Gato",
+              thumbFieldName: p.thumb || p.photo || undefined,
+              photoId: p.id,
+              lat: p.lat,
+              lng: p.lng,
+              takenAt: new Date(p.created).getTime(),
+              isOwn: p.user === myId,
+              ownerName: p.user === myId ? undefined : p.expand?.user?.name || "Amigo",
+            });
+          }
         }
       }
       enriched.sort((a, b) => b.takenAt - a.takenAt);
@@ -64,6 +97,11 @@ function MapPageInner() {
       console.error("Failed to load markers:", err);
     }
     setLoading(false);
+  }
+
+  function toggleShowFriends(enabled: boolean) {
+    setShowFriends(enabled);
+    setShowFriendsEnabled(enabled);
   }
 
   const catsWithLocations = useMemo(() => {
@@ -132,6 +170,11 @@ function MapPageInner() {
                     year: "numeric",
                   })}
                 </p>
+                {!selectedMarker.isOwn && selectedMarker.ownerName && (
+                  <p className="text-[0.8125rem] font-semibold text-catdex-blue mt-0.5">
+                    Captura de {selectedMarker.ownerName}
+                  </p>
+                )}
               </div>
             </div>
             <Link href={`/cat?id=${selectedMarker.catId}`} className="btn-primary w-full mt-5">
@@ -144,6 +187,13 @@ function MapPageInner() {
       {/* Cat filter sheet */}
       <Sheet open={filterSheetOpen} onClose={() => setFilterSheetOpen(false)}>
         <div className="px-6 pt-2 pb-4 max-h-[60dvh] overflow-y-auto">
+          <div className="flex items-center justify-between gap-3 py-2 mb-3 border-b border-catdex-hairline pb-4">
+            <div>
+              <p className="text-[0.9375rem] font-semibold">Mostrar capturas de amigos</p>
+              <p className="text-[0.75rem] text-catdex-text-muted mt-0.5">En azul, sobre las tuyas</p>
+            </div>
+            <Toggle checked={showFriends} onChange={toggleShowFriends} label="Mostrar capturas de amigos" />
+          </div>
           <h2 className="text-base font-bold mb-3">Filtrar por gato</h2>
           <button
             onClick={() => {

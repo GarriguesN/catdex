@@ -31,6 +31,9 @@ onRecordAfterCreateSuccess((e) => {
   } catch (err) {
     console.error("[catdex:hook] error:", err);
   }
+  // Without e.next() the hook chain stops here and the achievements
+  // handler (achievements.pb.js, same event) never runs.
+  e.next();
 }, "photos");
 
 // ═══ onRecordAfterDeleteSuccess for photos ═══
@@ -48,4 +51,5 @@ onRecordAfterDeleteSuccess((e) => {
   } catch (err) {
     console.error("[catdex:hook] delete error:", err);
   }
+  e.next();
 }, "photos");
