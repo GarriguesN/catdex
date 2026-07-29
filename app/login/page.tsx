@@ -65,7 +65,20 @@ export default function LoginPage() {
     getPocketBase()
       .collection("users")
       .authWithOAuth2Code(pending.provider, code, pending.codeVerifier, pending.redirectUrl)
-      .then(done)
+      .then(() => {
+        // iOS ejects installed PWAs from standalone (fullscreen) presentation
+        // the moment they navigate to an external origin like Google — this
+        // browsing context is now a normal Safari view and no client-side
+        // navigation brings standalone back, only relaunching from the home
+        // screen icon does. The session itself is fine (shared storage), so
+        // just say so instead of leaving the user on a broken-looking view.
+        if (isStandalonePWA()) {
+          done();
+        } else {
+          setLoading(false);
+          setNotice("¡Sesión iniciada! Cierra esta ventana y abre CatDex de nuevo desde el icono de tu pantalla de inicio.");
+        }
+      })
       .catch((err: any) => {
         setError(err?.message || "No se ha podido completar el inicio de sesión");
         setLoading(false);
