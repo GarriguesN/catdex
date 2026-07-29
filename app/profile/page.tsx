@@ -206,7 +206,7 @@ export default function ProfilePage() {
     <div className="pt-3 space-y-4">
       {/* Header — title left, notification bell right with unread dot */}
       <header className="flex items-center justify-between pb-1">
-        <h1 className="text-[1.75rem] font-bold tracking-tight">Perfil</h1>
+        <h1 className="text-[1.375rem] font-bold tracking-tight">Perfil</h1>
         <button
           aria-label="Notificaciones"
           onClick={() => setBellOpen(true)}
