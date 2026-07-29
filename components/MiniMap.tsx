@@ -37,10 +37,6 @@ export default function MiniMap({ catId }: { catId: string }) {
   useEffect(() => { loadPhotos(); }, [catId]);
 
   async function loadPhotos() {
-    // TEMP QA STUB — reverted before commit
-    setPhotos([{ lat: 41.3874, lng: 2.1686 }]);
-    setLoading(false);
-    return;
     try {
       const pb = getPocketBase();
       const result = await pb.collection("photos").getFullList({
