@@ -16,10 +16,9 @@ import { CatPicker } from "@/components/CatPicker";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
 import { DetectingScreen } from "@/components/capture/DetectingScreen";
 import { NotCatScreen } from "@/components/capture/NotCatScreen";
-import { CropScreen } from "@/components/capture/CropScreen";
 import { SavedScreen } from "@/components/capture/SavedScreen";
 
-type Screen = "camera" | "blur" | "detecting" | "notcat" | "crop" | "saved";
+type Screen = "camera" | "blur" | "detecting" | "notcat" | "saved";
 
 export default function CapturePage() {
   const router = useRouter();
@@ -134,11 +133,13 @@ export default function CapturePage() {
     }
   }, []);
 
-  // ── Pipeline: normalize → blur check → MobileNet → crop ──
+  // ── Pipeline: normalize → blur check → MobileNet → pHash + picker ──
 
   async function processCapture(file: Blob) {
     // 1. Normalize
-    const { blob } = await normalizePhoto(new File([file], "capture.jpg", { type: file.type || "image/jpeg" }));
+    const { blob, thumbBlob } = await normalizePhoto(new File([file], "capture.jpg", { type: file.type || "image/jpeg" }));
+    pendingBlobRef.current = blob;
+    pendingThumbBlobRef.current = thumbBlob;
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
 
@@ -170,31 +171,16 @@ export default function CapturePage() {
       return;
     }
 
-    // 4. Manual crop
-    setScreen("crop");
+    // 4. pHash + picker
+    await finalizeCapture(getImageData(bc));
   }
 
-  // ── After crop: pHash + picker ──
+  // ── pHash + picker (shared by the good path and "Usar de todas formas") ──
 
-  async function handleCropConfirm(croppedBlob: Blob) {
+  async function finalizeCapture(imageData: ImageData) {
     setScreen("detecting");
     try {
-      const { blob, thumbBlob } = await normalizePhoto(
-        new File([croppedBlob], "crop.jpg", { type: "image/jpeg" })
-      );
-      pendingBlobRef.current = blob;
-      pendingThumbBlobRef.current = thumbBlob;
-      setPreviewUrl(URL.createObjectURL(blob));
-
-      // pHash on the cropped image — used only to sort picker suggestions
-      const img = new Image();
-      img.src = URL.createObjectURL(croppedBlob);
-      await new Promise((r) => (img.onload = r));
-      const c = document.createElement("canvas");
-      c.width = img.width;
-      c.height = img.height;
-      c.getContext("2d")!.drawImage(img, 0, 0);
-      const hash = await computePHash(getImageData(c));
+      const hash = await computePHash(imageData);
       pendingHashRef.current = hash;
 
       const pb = getPocketBase();
@@ -206,16 +192,22 @@ export default function CapturePage() {
 
       setSuggestedIds(scored.map((s: any) => s.id));
     } catch (err) {
-      console.error("Crop processing failed:", err);
+      console.error("pHash/lookup failed:", err);
       setSuggestedIds([]);
     }
     setShowPicker(true);
   }
 
-  // ── Save (skip crop when "Usar de todas formas") ──
-
   async function handleUseAnyway() {
-    setScreen("crop");
+    if (!previewUrl) return;
+    const img = new Image();
+    img.src = previewUrl;
+    await new Promise((r) => (img.onload = r));
+    const c = document.createElement("canvas");
+    c.width = img.width;
+    c.height = img.height;
+    c.getContext("2d")!.drawImage(img, 0, 0);
+    await finalizeCapture(getImageData(c));
   }
 
   async function saveCat(existingCatId: string | null = null) {
@@ -420,10 +412,6 @@ export default function CapturePage() {
           onUseAnyway={handleUseAnyway}
           onClose={resetCapture}
         />
-      )}
-
-      {screen === "crop" && previewUrl && (
-        <CropScreen photoUrl={previewUrl} onConfirm={handleCropConfirm} onBack={resetCapture} />
       )}
 
       {showPicker && (

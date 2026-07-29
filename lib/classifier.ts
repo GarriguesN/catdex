@@ -94,10 +94,14 @@ let modelCache: any = null;
 async function getModel() {
   if (modelCache) return modelCache;
   if (!modelPromise) {
-    // Dynamic import — only loads when called
-    modelPromise = import("@tensorflow-models/mobilenet").then((mobilenet) =>
-      mobilenet.load({ version: 2, alpha: 0.5 })
-    );
+    // Dynamic import — only loads when called. tfjs must be ready (backend
+    // registered) before mobilenet.load(), otherwise classify() throws
+    // "No backend found in registry".
+    modelPromise = import("@tensorflow/tfjs").then(async (tf) => {
+      await tf.ready();
+      const mobilenet = await import("@tensorflow-models/mobilenet");
+      return mobilenet.load({ version: 2, alpha: 0.5 });
+    });
   }
   modelCache = await modelPromise;
   return modelCache;

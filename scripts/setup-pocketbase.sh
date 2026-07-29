@@ -49,7 +49,9 @@ CATS_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
     {\"name\":\"discoveredBy\",\"type\":\"relation\",\"collectionId\":\"$USERS_ID\"},
     {\"name\":\"photoCount\",\"type\":\"number\",\"min\":0},
     {\"name\":\"notes\",\"type\":\"text\"},
-    {\"name\":\"manuallyNamed\",\"type\":\"bool\"}
+    {\"name\":\"manuallyNamed\",\"type\":\"bool\"},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+    {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
   ],
   \"listRule\": \"@request.auth.id != ''\",
   \"viewRule\": \"@request.auth.id != ''\",
@@ -72,7 +74,9 @@ PHOTOS_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
     {\"name\":\"lng\",\"type\":\"number\"},
     {\"name\":\"phash\",\"type\":\"text\"},
     {\"name\":\"width\",\"type\":\"number\"},
-    {\"name\":\"height\",\"type\":\"number\"}
+    {\"name\":\"height\",\"type\":\"number\"},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+    {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
   ],
   \"listRule\": \"@request.auth.id != ''\",
   \"viewRule\": \"@request.auth.id != ''\",
@@ -89,7 +93,9 @@ ACH_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
     {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
     {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
     {\"name\":\"badgeCode\",\"type\":\"text\",\"required\":true},
-    {\"name\":\"unlockedAt\",\"type\":\"number\",\"required\":true}
+    {\"name\":\"unlockedAt\",\"type\":\"number\",\"required\":true},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+    {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
   ],
   \"listRule\": \"@request.auth.id != ''\",
   \"viewRule\": \"@request.auth.id != ''\",
