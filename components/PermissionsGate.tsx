@@ -5,6 +5,7 @@ import { Camera, MapPin, Check, X, AlertTriangle } from "lucide-react";
 import { openCamera, isCameraAvailable } from "@/lib/camera";
 import { getCurrentPosition, isGeolocationAvailable } from "@/lib/geo";
 import { getPocketBase } from "@/lib/pocketbase";
+import { Logo } from "@/components/ui/Logo";
 
 const PERMISSIONS_KEY = "catdex_permissions_granted";
 
@@ -18,16 +19,29 @@ interface PermissionsGateProps {
   onComplete: () => void;
 }
 
-function getPermissionHelp(type: "camera" | "gps"): string {
+type DeviceKind = "ios" | "android" | "desktop";
+
+/** Detects the device the PWA is running on, including installed (standalone) state. */
+function detectDevice(): { kind: DeviceKind; standalone: boolean } {
   const ua = navigator.userAgent.toLowerCase();
-  const isIOS = /iphone|ipad|ipod/.test(ua);
+  const isIOS = /iphone|ipad|ipod/.test(ua) || (/mac/.test(ua) && navigator.maxTouchPoints > 1);
   const isAndroid = /android/.test(ua);
-  if (isIOS) {
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+  return { kind: isIOS ? "ios" : isAndroid ? "android" : "desktop", standalone };
+}
+
+function getPermissionHelp(type: "camera" | "gps"): string {
+  const { kind, standalone } = detectDevice();
+  if (kind === "ios") {
+    // Installed home-screen PWAs on iOS keep their own permission state,
+    // separate from Safari's — the Settings path differs accordingly.
+    const path = standalone ? "Ajustes > CatDex" : "Ajustes > Safari";
     return type === "camera"
-      ? "Ve a Ajustes > Safari (o CatDex) > Cámara y dale a Permitir"
-      : "Ve a Ajustes > Privacidad > Localización > Safari y actívala";
+      ? `Ve a ${path} > Cámara y dale a Permitir`
+      : `Ve a ${path} > Ubicación y elige "Al usar la app"`;
   }
-  if (isAndroid) {
+  if (kind === "android") {
     return type === "camera"
       ? "Toca el candado en la barra de Chrome > Permisos > Cámara > Permitir"
       : "Toca el candado en Chrome > Permisos > Ubicación > Permitir";
@@ -74,21 +88,41 @@ export function PermissionsGate({ onComplete }: PermissionsGateProps) {
     }
   }
 
-  async function handleContinue() {
-    setRequesting(true);
-    setHelpMessage("");
-
-    const camOk = await requestCamera();
-    const locOk = await requestLocation();
-
-    setRequesting(false);
-
+  function finalize(camOk: boolean, locOk: boolean) {
     if (camOk && locOk) {
       localStorage.setItem(PERMISSIONS_KEY, "1");
       onComplete();
     } else {
       setHelpMessage(getPermissionHelp(!camOk ? "camera" : "gps"));
     }
+  }
+
+  async function handleRowClick(type: "camera" | "gps") {
+    if (requesting) return;
+    setHelpMessage("");
+    if (type === "camera") {
+      const ok = await requestCamera();
+      if (!ok) setHelpMessage(getPermissionHelp("camera"));
+    } else {
+      const ok = await requestLocation();
+      if (!ok) setHelpMessage(getPermissionHelp("gps"));
+    }
+  }
+
+  async function handleContinue() {
+    setRequesting(true);
+    setHelpMessage("");
+
+    // Fire both requests synchronously in the same click-handler tick —
+    // awaiting them one after another would let iOS Safari drop the user
+    // gesture on the second prompt, silently failing it instead of asking.
+    const [camOk, locOk] = await Promise.all([
+      cameraStatus === "granted" ? Promise.resolve(true) : requestCamera(),
+      locationStatus === "granted" ? Promise.resolve(true) : requestLocation(),
+    ]);
+
+    setRequesting(false);
+    finalize(camOk, locOk);
   }
 
   function handleNotNow() {
@@ -107,8 +141,8 @@ export function PermissionsGate({ onComplete }: PermissionsGateProps) {
         <span className="absolute top-24 right-16 w-1.5 h-1.5 rounded-full bg-catdex-green/40" />
         <span className="absolute top-10 right-24 w-1 h-1 rounded-full bg-catdex-text/20" />
 
-        <div className="w-28 h-28 mx-auto mb-6 rounded-full overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
-          <img src="/icono.png" alt="CatDex" className="w-full h-full object-cover scale-125" />
+        <div className="mx-auto mb-6 w-fit rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+          <Logo size={112} />
         </div>
 
         <h1 className="text-2xl font-bold text-catdex-text leading-tight">
@@ -126,12 +160,14 @@ export function PermissionsGate({ onComplete }: PermissionsGateProps) {
           title="Cámara"
           description="Para tomar fotos de gatos"
           status={cameraStatus}
+          onClick={() => handleRowClick("camera")}
         />
         <PermissionRow
           icon={MapPin}
           title="Ubicación"
           description="Para guardar dónde encuentras a los gatos"
           status={locationStatus}
+          onClick={() => handleRowClick("gps")}
         />
 
         {helpMessage && (
@@ -170,14 +206,21 @@ function PermissionRow({
   title,
   description,
   status,
+  onClick,
 }: {
   icon: typeof Camera;
   title: string;
   description: string;
   status: PermStatus;
+  onClick: () => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={status === "requesting" || status === "granted"}
+      className="w-full bg-white rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_2px_10px_rgba(0,0,0,0.05)] text-left transition-transform active:scale-[0.98] disabled:active:scale-100"
+    >
       <div className="w-10 h-10 rounded-xl bg-catdex-orange/10 flex items-center justify-center flex-shrink-0">
         <Icon className="h-5 w-5 text-catdex-orange" />
       </div>
@@ -186,7 +229,7 @@ function PermissionRow({
         <p className="text-xs text-catdex-text-muted mt-0.5">{description}</p>
       </div>
       <StatusBadge status={status} />
-    </div>
+    </button>
   );
 }
 

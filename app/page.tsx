@@ -8,7 +8,6 @@ import { getFavorites, toggleFavorite, onFavoritesChange } from "@/lib/favorites
 import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
-import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
 import { IconButton } from "@/components/ui/IconButton";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { Chip } from "@/components/ui/Chip";
@@ -31,7 +30,6 @@ export default function CollectionPage() {
   const { user, loading: authLoading } = useRequireAuth();
   const [cats, setCats] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -100,17 +98,6 @@ export default function CollectionPage() {
         }
       });
   }, [cats, search, filter, sort, favorites]);
-
-  if (showOnboarding) {
-    return (
-      <OnboardingModal
-        onComplete={() => {
-          setShowOnboarding(false);
-          loadCats();
-        }}
-      />
-    );
-  }
 
   return (
     <>
