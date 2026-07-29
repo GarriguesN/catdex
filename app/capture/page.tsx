@@ -8,7 +8,7 @@ import { normalizePhoto, blurScore, getImageData } from "@/lib/image";
 import { openCamera, captureFrame, isCameraAvailable, setTorch } from "@/lib/camera";
 import { generateCatName } from "@/lib/names";
 import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
-import { classifyPhoto } from "@/lib/classifier";
+import { classifyPhoto, preloadClassifier } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
 import { getPocketBase } from "@/lib/pocketbase";
 import { playShutterSound } from "@/lib/sounds";
@@ -72,6 +72,12 @@ export default function CapturePage() {
 
   useEffect(() => {
     if (isCameraAvailable()) startCamera(facing);
+
+    // Warm up the detection model now, in the background — the first load
+    // is ~20s of mostly main-thread work (download + WebGL shader compile).
+    // Doing it here means it's done well before the user takes their first
+    // photo, instead of freezing the "Detectando…" screen right after.
+    preloadClassifier();
 
     // Grab position early (best effort) so saves carry GPS
     navigator.geolocation?.getCurrentPosition(

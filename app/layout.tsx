@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-provider";
 import { AppShell } from "@/components/AppShell";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { ClassifierPreload } from "@/components/ClassifierPreload";
 
 export const metadata: Metadata = {
   title: "CatDex",
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh flex flex-col bg-catdex-cream text-catdex-text">
         <AuthProvider>
           <ServiceWorkerRegister />
+          <ClassifierPreload />
           <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>

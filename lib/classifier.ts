@@ -75,6 +75,19 @@ async function getModel() {
 }
 
 /**
+ * Kick off the coco-ssd download + WebGL shader compilation ahead of time
+ * (e.g. as soon as the capture screen mounts) instead of on the first
+ * shutter press. Loading is ~20s of real (mostly main-thread) work the
+ * first time — without this, that entire load blocks the "Detectando…"
+ * screen right after the user takes their first photo, freezing its
+ * spinner and making the app look hung. Safe to call multiple times and
+ * to ignore the result; classifyPhoto() awaits the same cached promise.
+ */
+export function preloadClassifier(): void {
+  getModel().catch((err) => console.warn("[classifier] preload failed:", err));
+}
+
+/**
  * Detect objects in a photo and check if a cat is among them.
  * Returns classification result with quality assessment.
  */
