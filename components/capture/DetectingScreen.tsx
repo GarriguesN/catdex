@@ -32,7 +32,7 @@ export function DetectingScreen({ photoUrl }: { photoUrl: string }) {
           <ChecklistItem state="done" label="Foto tomada" />
           <ChecklistItem state="done" label="Nitidez correcta" />
           <ChecklistItem state="active" label="¿Es un gato?" />
-          <ChecklistItem state="pending" label="Preparando recorte" />
+          <ChecklistItem state="pending" label="Buscando coincidencias" />
         </div>
       </div>
     </div>

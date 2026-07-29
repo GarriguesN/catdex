@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, Dog, HelpCircle } from "lucide-react";
 
 interface NotCatScreenProps {
   title: string;
@@ -33,7 +33,11 @@ export function NotCatScreen({ title, subtitle, isSpecific, photoUrl, onRetry, o
         {/* White circle with dog / question icon */}
         <div className="mb-8">
           <div className="w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-float">
-            {isSpecific ? <DogIcon /> : <NeutralIcon />}
+            {isSpecific ? (
+              <Dog className="h-9 w-9 text-catdex-text" strokeWidth={1.8} />
+            ) : (
+              <HelpCircle className="h-9 w-9 text-catdex-text" strokeWidth={1.8} />
+            )}
           </div>
         </div>
 
@@ -54,28 +58,5 @@ export function NotCatScreen({ title, subtitle, isSpecific, photoUrl, onRetry, o
         </button>
       </div>
     </div>
-  );
-}
-
-function DogIcon() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#222326" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 5.172C10 3.782 8.423 2.679 6.5 3c-2.823.47-4.113 6.006-4 7 .08.7 1.04.862 1.1 1.1.5.38 1.4.64 1.9 3.4.15.846 1.1 1.1 1.5.5.56-.84.9-1.6 2-3 1.285-1.636 2.5-2.232 4-2s2.715.364 4 2c1.1 1.4 1.44 2.16 2 3 .4.6 1.35.346 1.5-.5.5-2.76 1.4-3.02 1.9-3.4.06-.238 1.02-.4 1.1-1.1.113-.994-1.177-6.53-4-7-1.923-.321-3.5.782-3.5 2.172" />
-      <path d="M10 15v2" />
-      <path d="M14 15v2" />
-      <path d="M12 12v.01" />
-      <path d="M9 9v.01" />
-      <path d="M15 9v.01" />
-    </svg>
-  );
-}
-
-function NeutralIcon() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#222326" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
   );
 }

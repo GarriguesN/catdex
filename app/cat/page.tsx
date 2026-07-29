@@ -428,7 +428,6 @@ function CatDetailInner() {
           <div className="space-y-2.5">
             <DetailRow label="¿Es un gato?" value="Sí" valueClass="text-catdex-green font-semibold" />
             <DetailRow label="Modelo IA" value="MobileNetV3" />
-            <DetailRow label="Recorte manual" value="Sí (CatPicker)" />
             {savedSize && <DetailRow label="Tamaño guardado" value={savedSize} />}
             <DetailRow label="Fotos" value={`${photos.length}`} />
             {mainPhoto?.photo && <DetailRow label="Archivo" value={mainPhoto.photo} mono />}

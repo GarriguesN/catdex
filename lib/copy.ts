@@ -64,15 +64,23 @@ export function getBlurCopy() {
 }
 
 let lastNotCatIndex = -1;
-const CONFIDENCE_THRESHOLD = 0.5;
+// classifyPhoto() returns confidence on a 0-100 scale (see lib/classifier.ts).
+const CONFIDENCE_THRESHOLD = 50;
+
+/**
+ * Whether the top prediction is a recognized animal we have Spanish copy
+ * for. Single source of truth — also drives which icon NotCatScreen shows,
+ * so it must stay in sync with getNotCatCopy's specific/generic branch.
+ */
+export function isKnownAnimal(topLabel?: string, confidence?: number): boolean {
+  if (!topLabel || !confidence || confidence <= CONFIDENCE_THRESHOLD) return false;
+  return !!ANIMAL_LABELS_ES[topLabel.toLowerCase()];
+}
 
 export function getNotCatCopy(topLabel?: string, confidence?: number) {
-  if (topLabel && confidence && confidence > CONFIDENCE_THRESHOLD) {
-    const key = topLabel.toLowerCase();
-    const animalEs = ANIMAL_LABELS_ES[key];
-    if (animalEs) {
-      return CAPTURE_COPY.notCatFail.specific(animalEs);
-    }
+  if (isKnownAnimal(topLabel, confidence)) {
+    const animalEs = ANIMAL_LABELS_ES[topLabel!.toLowerCase()];
+    return CAPTURE_COPY.notCatFail.specific(animalEs);
   }
   const { generic } = CAPTURE_COPY.notCatFail;
   const index = pickDifferentIndex(generic.length, lastNotCatIndex);

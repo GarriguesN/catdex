@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { normalizePhoto, blurScore, getImageData } from "@/lib/image";
 import { openCamera, captureFrame, isCameraAvailable, setTorch } from "@/lib/camera";
 import { generateCatName } from "@/lib/names";
-import { getBlurCopy, getNotCatCopy } from "@/lib/copy";
+import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
 import { classifyPhoto } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
 import { getPocketBase } from "@/lib/pocketbase";
@@ -44,6 +44,7 @@ export default function CapturePage() {
   const pendingThumbBlobRef = useRef<Blob | null>(null);
   const pendingHashRef = useRef<string>("");
   const positionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const savingRef = useRef(false);
 
   // ── Camera lifecycle ──
 
@@ -164,9 +165,8 @@ export default function CapturePage() {
     const result = await classifyPhoto(img);
 
     if (result.quality === "not_cat") {
-      const isSpecific = !!(result.topClass && result.confidence > 0.5);
       setNotCatCopy(getNotCatCopy(result.topClass, result.confidence));
-      setIsSpecificAnimal(isSpecific);
+      setIsSpecificAnimal(isKnownAnimal(result.topClass, result.confidence));
       setScreen("notcat");
       return;
     }
@@ -213,7 +213,10 @@ export default function CapturePage() {
   async function saveCat(existingCatId: string | null = null) {
     const blob = pendingBlobRef.current;
     const thumbBlob = pendingThumbBlobRef.current;
-    if (!blob || !thumbBlob || saving) return;
+    // Ref check-and-set is synchronous, unlike `saving` state — guards against
+    // a double-tap firing this twice before the first render with saving=true lands.
+    if (!blob || !thumbBlob || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
 
     try {
@@ -224,19 +227,20 @@ export default function CapturePage() {
 
       if (!catId) {
         const name = generateCatName();
-        const cat = await pb.collection("cats").create({
-          name,
-          hash,
-          photoCount: 1,
-          discoveredBy: pb.authStore.record?.id,
-        });
+        // requestKey: null — PocketBase auto-cancels same-endpoint requests by
+        // default; without this a second concurrent create() would abort this one.
+        const cat = await pb.collection("cats").create(
+          { name, hash, photoCount: 1, discoveredBy: pb.authStore.record?.id },
+          { requestKey: null }
+        );
         catId = cat.id;
       } else {
         const cat = (await pb.collection("cats").getOne(catId)) as any;
-        await pb.collection("cats").update(catId, {
-          photoCount: (cat.photoCount || 0) + 1,
-          hash,
-        });
+        await pb.collection("cats").update(
+          catId,
+          { photoCount: (cat.photoCount || 0) + 1, hash },
+          { requestKey: null }
+        );
       }
 
       const form = new FormData();
@@ -249,7 +253,7 @@ export default function CapturePage() {
         form.append("lat", String(positionRef.current.lat));
         form.append("lng", String(positionRef.current.lng));
       }
-      await pb.collection("photos").create(form);
+      await pb.collection("photos").create(form, { requestKey: null });
 
       stopCamera();
       setSavedCatId(catId);
@@ -258,6 +262,7 @@ export default function CapturePage() {
       console.error("Save failed:", err);
       alert("No se ha podido guardar. Inténtalo de nuevo.");
     }
+    savingRef.current = false;
     setSaving(false);
   }
 
