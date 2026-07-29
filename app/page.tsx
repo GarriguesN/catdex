@@ -18,6 +18,7 @@ interface Cat {
   name: string;
   photoCount: number;
   lastSeen: number;
+  createdAt: number;
   thumbUrl: string | null;
 }
 
@@ -77,6 +78,7 @@ export default function CollectionPage() {
           name: item.name || "Sin nombre",
           photoCount: item.photoCount || 0,
           lastSeen: new Date(item.updated || item.created).getTime(),
+          createdAt: new Date(item.created).getTime(),
           thumbUrl: thumbByCat.get(item.id) || null,
         }))
       );
@@ -85,6 +87,13 @@ export default function CollectionPage() {
     }
     setLoading(false);
   }
+
+  // Stable per-user Pokédex-style numbering — #1 is the first cat this user
+  // ever captured, regardless of how the list below is currently sorted/filtered.
+  const rankById = useMemo(() => {
+    const byCaptureOrder = [...cats].sort((a, b) => a.createdAt - b.createdAt);
+    return new Map(byCaptureOrder.map((c, i) => [c.id, i + 1]));
+  }, [cats]);
 
   const filtered = useMemo(() => {
     const now = Date.now();
@@ -157,6 +166,8 @@ export default function CollectionPage() {
             <CatCard
               key={cat.id}
               id={cat.id}
+              rank={rankById.get(cat.id) ?? 0}
+              name={cat.name}
               thumbUrl={cat.thumbUrl}
               date={new Date(cat.lastSeen)}
               favorite={favorites.has(cat.id)}
