@@ -79,6 +79,7 @@ export async function listFriends(): Promise<FriendEntry[]> {
   const rows = await pb.collection("friendships").getFullList({
     filter: 'status="accepted"',
     expand: "requester,addressee",
+    $autoCancel: false,
   });
   return rows.map((r: any) => toEntry(r, r.requester === me ? "addressee" : "requester"));
 }
@@ -91,6 +92,7 @@ export async function listPendingIncoming(): Promise<FriendEntry[]> {
   const rows = await pb.collection("friendships").getFullList({
     filter: `status="pending" && addressee="${me}"`,
     expand: "requester",
+    $autoCancel: false,
   });
   return rows.map((r: any) => toEntry(r, "requester"));
 }
@@ -103,6 +105,7 @@ export async function listPendingOutgoing(): Promise<FriendEntry[]> {
   const rows = await pb.collection("friendships").getFullList({
     filter: `status="pending" && requester="${me}"`,
     expand: "addressee",
+    $autoCancel: false,
   });
   return rows.map((r: any) => toEntry(r, "addressee"));
 }
@@ -123,6 +126,7 @@ export async function getRelationshipStatus(otherId: string): Promise<Relationsh
   const rows = await pb.collection("friendships").getFullList({
     filter: `(requester="${me}" && addressee="${otherId}") || (requester="${otherId}" && addressee="${me}")`,
     fields: "requester,status",
+    $autoCancel: false,
   });
   const row = rows[0] as any;
   if (!row) return "none";
