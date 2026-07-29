@@ -1,56 +1,51 @@
 /**
  * PocketBase hook — scoring + photoCount server-side.
- *
  * Deploy: copy to /opt/pocketbase/pb_hooks/ on CT 120
- * PocketBase auto-loads *.pb.js files from pb_hooks/ on start.
  */
 
 // ═══ onRecordAfterCreateSuccess for photos ═══
 onRecordAfterCreateSuccess((e) => {
-  const photo = e.record; // the new photo record
+  const photo = e.record;
   const photoCat = photo.get("cat");
   const photoUser = photo.get("user");
 
   if (!photoCat || !photoUser) return;
 
-  // Check if this is a NEW cat (first photo = discovery) or existing
-  $app.dao().db()
-    .newQuery("SELECT photoCount, discoveredBy FROM cats WHERE id = {:catId}")
-    .bind({ catId: photoCat })
-    .one()
-    .then((cat) => {
-      if (!cat) return;
+  try {
+    const cat = $app.findRecordById("cats", photoCat);
+    if (!cat) return;
 
-      const isFirstPhoto = cat.photoCount === 0;
-      const points = isFirstPhoto ? 50 : 10;
+    const isFirstPhoto = (cat.get("photoCount") || 0) === 0;
+    const points = isFirstPhoto ? 50 : 10;
 
-      // Update cat photoCount atomically
-      $app.dao().db()
-        .newQuery("UPDATE cats SET photoCount = photoCount + 1 WHERE id = {:catId}")
-        .bind({ catId: photoCat })
-        .execute();
+    // Update cat photoCount
+    cat.set("photoCount", (cat.get("photoCount") || 0) + 1);
+    $app.save(cat);
 
-      // Award points to user (server-side, cannot be tampered with)
-      $app.dao().db()
-        .newQuery("UPDATE users SET score = COALESCE(score, 0) + {:pts} WHERE id = {:userId}")
-        .bind({ pts: points, userId: photoUser })
-        .execute();
-    })
-    .catch((err) => {
-      console.error("[catdex:hook] score update failed:", err);
-    });
+    // Award points to user
+    const user = $app.findRecordById("users", photoUser);
+    if (user) {
+      user.set("score", (user.get("score") || 0) + points);
+      $app.save(user);
+    }
+  } catch (err) {
+    console.error("[catdex:hook] error:", err);
+  }
 }, "photos");
 
 // ═══ onRecordAfterDeleteSuccess for photos ═══
 onRecordAfterDeleteSuccess((e) => {
   const photo = e.record;
   const photoCat = photo.get("cat");
-
   if (!photoCat) return;
 
-  // Decrement photoCount
-  $app.dao().db()
-    .newQuery("UPDATE cats SET photoCount = MAX(0, photoCount - 1) WHERE id = {:catId}")
-    .bind({ catId: photoCat })
-    .execute();
+  try {
+    const cat = $app.findRecordById("cats", photoCat);
+    if (cat) {
+      cat.set("photoCount", Math.max(0, (cat.get("photoCount") || 0) - 1));
+      $app.save(cat);
+    }
+  } catch (err) {
+    console.error("[catdex:hook] delete error:", err);
+  }
 }, "photos");
