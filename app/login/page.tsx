@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { getPocketBase } from "@/lib/pocketbase";
 import { Logo } from "@/components/ui/Logo";
+import { isStandalonePWA } from "@/lib/pwa";
 
 type Mode = "login" | "register";
 
@@ -18,6 +19,16 @@ function dedupeRedirectUri(url: string): string {
   return u.toString();
 }
 
+// sessionStorage key for the pending-redirect OAuth flow (see loginWithOAuth).
+const PENDING_OAUTH_KEY = "catdex_oauth_pending";
+
+interface PendingOAuth {
+  provider: "google" | "apple";
+  codeVerifier: string;
+  redirectUrl: string;
+  state: string;
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -30,6 +41,37 @@ export default function LoginPage() {
   function done() {
     window.location.href = "/";
   }
+
+  // Landing back here after the standalone-PWA redirect flow (see
+  // loginWithOAuth): the URL now carries the OAuth provider's ?code&state.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const state = params.get("state");
+    if (!code) return;
+
+    const raw = sessionStorage.getItem(PENDING_OAUTH_KEY);
+    sessionStorage.removeItem(PENDING_OAUTH_KEY);
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (!raw) return;
+    const pending: PendingOAuth = JSON.parse(raw);
+    if (pending.state !== state) {
+      setError("No se ha podido verificar el inicio de sesión. Inténtalo de nuevo.");
+      return;
+    }
+
+    setLoading(true);
+    getPocketBase()
+      .collection("users")
+      .authWithOAuth2Code(pending.provider, code, pending.codeVerifier, pending.redirectUrl)
+      .then(done)
+      .catch((err: any) => {
+        setError(err?.message || "No se ha podido completar el inicio de sesión");
+        setLoading(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function submitEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +96,38 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     setNotice("");
+
+    // Installed PWAs run without normal browser chrome/tabs, so window.open()
+    // popups are unreliable there (they can spawn a detached window whose
+    // result never makes it back, losing the session entirely). Skip popups
+    // altogether in that case and do a plain top-level redirect instead: no
+    // window.open, so nothing to lose track of.
+    if (isStandalonePWA()) {
+      try {
+        const pb = getPocketBase();
+        const methods = await pb.collection("users").listAuthMethods();
+        const providerInfo = methods.oauth2.providers.find((p) => p.name === provider);
+        if (!providerInfo) throw new Error(`Proveedor "${provider}" no disponible`);
+
+        const redirectUrl = `${window.location.origin}/login`;
+        const pending: PendingOAuth = {
+          provider,
+          codeVerifier: providerInfo.codeVerifier,
+          redirectUrl,
+          state: providerInfo.state,
+        };
+        sessionStorage.setItem(PENDING_OAUTH_KEY, JSON.stringify(pending));
+        // authURL is deliberately meant to be concatenated with the redirect
+        // URL directly (not set via URLSearchParams) — see dedupeRedirectUri
+        // above for what goes wrong when a redirect_uri ends up duplicated.
+        window.location.href = providerInfo.authURL + encodeURIComponent(redirectUrl);
+      } catch (err: any) {
+        setError(err?.message || `No se ha podido conectar con ${provider === "google" ? "Google" : "Apple"}`);
+        setLoading(false);
+      }
+      return;
+    }
+
     // The pocketbase JS SDK's default popup flow can emit a duplicated
     // (first empty) redirect_uri param, which OAuth providers reject as
     // missing. Open the popup ourselves and sanitize the URL it's sent to.
