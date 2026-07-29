@@ -76,6 +76,15 @@ function pickRandom(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// MobileNet (esp. the lightweight alpha=0.5 variant we use) is often only
+// ~8-10% confident even on unambiguous real-world photos — nowhere near the
+// textbook "90%+ on a clean ImageNet sample" people expect. Rejecting on ANY
+// non-cat top-1 guess, regardless of how unsure the model is, meant a real
+// cat photo could get flatly told "this is a cuirass" at 8% confidence. Only
+// hard-reject when the model is actually confident about the wrong class;
+// below this, it's noise and we let the photo through instead.
+const MIN_CONFIDENT_NOT_CAT = 30;
+
 export interface ClassificationResult {
   isCat: boolean;
   topClass: string;
@@ -149,18 +158,34 @@ export async function classifyPhoto(
       `[classifier] top class "${top.className}" confidence=${confidence.toFixed(1)}% isCatClass=${isCat}`
     );
 
-    if (!isCat) {
+    if (!isCat && confidence >= MIN_CONFIDENT_NOT_CAT) {
       // Try to extract a friendly name from the class
       const shortClass = top.className.split(",")[0].trim();
       const hardMessage = POKEDEX_MESSAGES.not_cat_hard
         .replace(/\{class\}/g, shortClass);
-      console.log(`[classifier] decision: not_cat ("${shortClass}" not in CAT_CLASSES/keywords)`);
+      console.log(`[classifier] decision: not_cat ("${shortClass}" not in CAT_CLASSES/keywords, confident at ${confidence.toFixed(1)}%)`);
       return {
         isCat: false,
         topClass: top.className,
         confidence,
         quality: "not_cat",
         message: hardMessage,
+      };
+    }
+
+    if (!isCat) {
+      // Non-cat top guess, but the model is too unsure to trust it — treat
+      // as low-confidence rather than a hard rejection.
+      console.log(
+        `[classifier] decision: low_confidence (non-cat top guess "${top.className}" only ` +
+          `${confidence.toFixed(1)}% — below ${MIN_CONFIDENT_NOT_CAT}% not_cat threshold)`
+      );
+      return {
+        isCat: true,
+        topClass: top.className,
+        confidence,
+        quality: "low_confidence",
+        message: pickRandom(POKEDEX_MESSAGES.low_confidence),
       };
     }
 
