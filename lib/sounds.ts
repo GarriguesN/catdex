@@ -29,8 +29,18 @@ function playTone(freq: number, dur: number, type: OscillatorType = "square", vo
   } catch { /* silent */ }
 }
 
+/** Triumphant "you caught it!" chime — rising major arpeggio landing on a bright sparkle. */
 export function playCaptureSound() {
-  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 0.12, "square", 0.06), i * 80));
+  const notes: [freq: number, delayMs: number, dur: number, vol: number][] = [
+    [523.25, 0, 0.14, 0.07], // C5
+    [659.25, 90, 0.14, 0.07], // E5
+    [783.99, 180, 0.16, 0.08], // G5
+    [1046.5, 280, 0.28, 0.1], // C6 — the "landing" note, held longer
+    [1567.98, 310, 0.22, 0.06], // G6 — sparkle, overlapping the landing note
+  ];
+  for (const [freq, delay, dur, vol] of notes) {
+    setTimeout(() => playTone(freq, dur, "triangle", vol), delay);
+  }
 }
 
 export function playBadgeSound() {

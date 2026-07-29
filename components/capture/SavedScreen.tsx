@@ -2,9 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Volume2 } from "lucide-react";
-import { ToggleChip } from "@/components/ui/Chip";
-import { areSoundsEnabled, setSoundsEnabled } from "@/lib/sound-prefs";
 import { playCaptureSound } from "@/lib/sounds";
 
 interface SavedScreenProps {
@@ -13,28 +10,18 @@ interface SavedScreenProps {
   onContinue?: () => void;
 }
 
-const FLASH_KEY = "catdex_flash_enabled";
 const CONFETTI_COLORS = ["#FF8A26", "#FFA54A", "#3DBE7B", "#222326"];
 
 export function SavedScreen({ catId, photoUrl, onContinue }: SavedScreenProps) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [showFlash, setShowFlash] = useState(false);
-  const [flashOn, setFlashOn] = useState(true);
-  const [soundOn, setSoundOn] = useState(true);
+  const [showFlash, setShowFlash] = useState(true);
 
   useEffect(() => {
-    const flashEnabled = localStorage.getItem(FLASH_KEY) !== "0";
-    const soundEnabled = areSoundsEnabled();
-    setFlashOn(flashEnabled);
-    setSoundOn(soundEnabled);
-
-    // Flash effect + shutter feedback
-    if (flashEnabled) {
-      setShowFlash(true);
-      setTimeout(() => setShowFlash(false), 450);
-    }
-    if (soundEnabled) playCaptureSound();
+    // Flash effect + celebratory sound (sound respects the global
+    // Ajustes > Sonidos preference, no need to duplicate a toggle here)
+    setTimeout(() => setShowFlash(false), 450);
+    playCaptureSound();
 
     // Confetti
     const canvas = canvasRef.current;
@@ -79,20 +66,6 @@ export function SavedScreen({ catId, photoUrl, onContinue }: SavedScreenProps) {
     return () => cancelAnimationFrame(frameId);
   }, []);
 
-  function toggleFlash() {
-    setFlashOn((on) => {
-      localStorage.setItem(FLASH_KEY, on ? "0" : "1");
-      return !on;
-    });
-  }
-
-  function toggleSound() {
-    setSoundOn((on) => {
-      setSoundsEnabled(!on);
-      return !on;
-    });
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-catdex-cream flex flex-col">
       {/* Flash overlay */}
@@ -115,17 +88,7 @@ export function SavedScreen({ catId, photoUrl, onContinue }: SavedScreenProps) {
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-catdex-text mb-6">¡Gato guardado!</h2>
-
-        {/* Flash + Sound toggle chips */}
-        <div className="flex items-center gap-3 mb-8">
-          <ToggleChip active={flashOn} onClick={toggleFlash}>
-            <Zap className="h-3.5 w-3.5" /> Flash
-          </ToggleChip>
-          <ToggleChip active={soundOn} onClick={toggleSound}>
-            <Volume2 className="h-3.5 w-3.5" /> Sonido
-          </ToggleChip>
-        </div>
+        <h2 className="text-2xl font-bold text-catdex-text mb-8">¡Gato guardado!</h2>
 
         <button onClick={() => router.push(`/cat?id=${catId}`)} className="btn-primary w-full max-w-xs">
           Ver ficha
