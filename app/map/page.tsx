@@ -103,7 +103,9 @@ function MapPageInner() {
           </p>
         </div>
       ) : (
-        <div className="relative flex-1 rounded-3xl overflow-hidden shadow-soft">
+        // Note: isolate below contains Leaflet's internal pane z-indexes
+        // (up to 600+) so they can't escape and render above fixed UI.
+        <div className="relative isolate flex-1 rounded-3xl overflow-hidden shadow-soft">
           <LazyMap markers={markers} onMarkerClick={setSelectedMarker} />
         </div>
       )}

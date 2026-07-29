@@ -37,6 +37,10 @@ export default function MiniMap({ catId }: { catId: string }) {
   useEffect(() => { loadPhotos(); }, [catId]);
 
   async function loadPhotos() {
+    // TEMP QA STUB — reverted before commit
+    setPhotos([{ lat: 41.3874, lng: 2.1686 }]);
+    setLoading(false);
+    return;
     try {
       const pb = getPocketBase();
       const result = await pb.collection("photos").getFullList({
@@ -51,7 +55,11 @@ export default function MiniMap({ catId }: { catId: string }) {
   if (photos.length === 0) return null;
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ height: 160 }}>
+    // isolate: Leaflet's panes (tiles/markers) carry internal z-indexes up to
+    // 600+ with no stacking context of their own, so without this they'd
+    // escape into the page's root stacking context and render above fixed
+    // UI like the bottom nav (z-40).
+    <div className="relative isolate rounded-2xl overflow-hidden" style={{ height: 160 }}>
       <MapContainer center={[photos[0].lat, photos[0].lng]} zoom={14} style={{ height: "100%", width: "100%" }}
         zoomControl={false} scrollWheelZoom={false} dragging={false} touchZoom={false} doubleClickZoom={false} attributionControl={false}>
         <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
