@@ -16,6 +16,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { getPocketBase } from "@/lib/pocketbase";
 import { getFavorites } from "@/lib/favorites";
 import { formatTimeAgo } from "@/lib/utils";
@@ -129,6 +130,10 @@ export default function ProfilePage() {
     loadFriendsAndRequests();
   }, [user, loadFriendsAndRequests]);
 
+  // Friend requests/accepts made from another device won't push here —
+  // catch up whenever the user comes back to this tab.
+  useRefetchOnFocus(loadFriendsAndRequests);
+
   const pb = getPocketBase();
 
   const stats = useMemo(() => {
@@ -209,7 +214,10 @@ export default function ProfilePage() {
         <h1 className="text-[1.375rem] font-bold tracking-tight">Perfil</h1>
         <button
           aria-label="Notificaciones"
-          onClick={() => setBellOpen(true)}
+          onClick={() => {
+            setBellOpen(true);
+            loadFriendsAndRequests();
+          }}
           className="relative w-10 h-10 rounded-full flex items-center justify-center text-catdex-text active:scale-90 transition-transform"
         >
           <Bell className="h-6 w-6" strokeWidth={1.8} />

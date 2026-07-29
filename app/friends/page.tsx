@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Check, UserPlus, Trash2, X } from "lucide-react";
+import { Copy, Check, UserPlus, Trash2, X, RefreshCw } from "lucide-react";
+import clsx from "clsx";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
+import { IconButton } from "@/components/ui/IconButton";
 import {
   getMyInviteCode,
   resolveInviteCode,
@@ -28,6 +31,7 @@ export default function FriendsPage() {
   const [incoming, setIncoming] = useState<FriendEntry[]>([]);
   const [outgoing, setOutgoing] = useState<FriendEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Add-friend flow
   const [addOpen, setAddOpen] = useState(false);
@@ -41,6 +45,7 @@ export default function FriendsPage() {
   const [toRemove, setToRemove] = useState<FriendEntry | null>(null);
 
   const load = useCallback(async () => {
+    setRefreshing(true);
     try {
       const [f, inc, out] = await Promise.all([
         listFriends(),
@@ -54,11 +59,16 @@ export default function FriendsPage() {
       console.error("Failed to load friendships:", err);
     }
     setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
     if (user) load();
   }, [user, load]);
+
+  // Requests/accepts made from the other person's device won't push to this
+  // tab — catch up whenever the user comes back to it.
+  useRefetchOnFocus(load);
 
   const myCode = getMyInviteCode();
 
@@ -144,7 +154,16 @@ export default function FriendsPage() {
 
   return (
     <div className="space-y-4">
-      <TopBar back backHref="/profile" title="Amigos" />
+      <TopBar
+        back
+        backHref="/profile"
+        title="Amigos"
+        actions={
+          <IconButton label="Actualizar" onClick={load} disabled={refreshing}>
+            <RefreshCw className={clsx("h-[19px] w-[19px]", refreshing && "animate-spin")} />
+          </IconButton>
+        }
+      />
 
       {/* Invite code + add friend */}
       <Card>
