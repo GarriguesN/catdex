@@ -97,14 +97,16 @@ function pickDifferentIndex(length: number, lastIndex: number): number {
   return index;
 }
 
+// Matches the COCO class vocabulary coco-ssd detects (see lib/classifier.ts) —
+// its 80 classes are coarser than ImageNet's (no raccoon/fox/squirrel/hen).
 export const ANIMAL_LABELS_ES: Record<string, string> = {
   dog: "perro",
-  chihuahua: "perro",
-  pug: "perro",
   bird: "pájaro",
-  squirrel: "ardilla",
-  "fox squirrel": "ardilla",
-  raccoon: "mapache",
-  "red fox": "zorro",
-  hen: "gallina",
+  horse: "caballo",
+  sheep: "oveja",
+  cow: "vaca",
+  elephant: "elefante",
+  bear: "oso",
+  zebra: "cebra",
+  giraffe: "jirafa",
 };

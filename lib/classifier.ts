@@ -1,53 +1,15 @@
 /**
- * Photo quality/content gate using MobileNet classification.
+ * Photo quality/content gate using coco-ssd object detection.
  *
- * MobileNet was trained on ImageNet — it's excellent at answering
- * "is this a cat?" (classification), even though it can't answer
- * "WHICH cat is this?" (re-identification). We use it as a gate:
- * reject non-cat photos and warn on low-confidence shots.
+ * We used to run MobileNet (whole-image ImageNet classification) here, but
+ * that answers "what's the single dominant subject of this photo?" — with a
+ * hand, background, or phone screen in frame it gets confidently wrong, and
+ * even on a clean cat photo the lightweight variant we used often scored the
+ * top guess at just ~8%. coco-ssd instead *detects* objects (with boxes +
+ * per-object scores) among COCO's 80 classes, one of which is "cat" — a hand
+ * in the foreground doesn't drown out a cat elsewhere in frame the way it
+ * did for a single whole-image classification.
  */
-
-// ImageNet classes that are cat-related (synset IDs from ImageNet)
-// We check if the top prediction matches any of these
-const CAT_CLASSES = new Set([
-  "tabby",
-  "tiger cat",
-  "Persian cat",
-  "Siamese cat",
-  "Egyptian cat",
-  "tiger",
-  "lynx",
-  "leopard",
-  "snow leopard",
-  "jaguar",
-  "cheetah",
-  "lion",
-  "cougar",
-  "cat", // generic catch
-  "domestic cat",
-  "kitty",
-  "kitten",
-  "alley cat",
-  "stray",
-]);
-
-/**
- * Check if an ImageNet class name is cat-related.
- * We use substring matching because MobileNet's class names
- * may vary (e.g., "tabby, tabby cat" vs "tabby cat").
- */
-function isCatClass(className: string): boolean {
-  const lower = className.toLowerCase();
-  // Direct match
-  if (CAT_CLASSES.has(lower)) return true;
-  // Substring match for composite names
-  for (const catClass of CAT_CLASSES) {
-    if (lower.includes(catClass)) return true;
-  }
-  // Cat-related keywords for detection
-  const catKeywords = ["cat", "tabby", "kitten", "kitty", "feline", "tiger", "lion", "lynx", "leopard", "cheetah", "jaguar", "cougar", "panther", "ocelot", "bobcat", "caracal"];
-  return catKeywords.some((kw) => lower.includes(kw));
-}
 
 // Pokédex-style messages — playful, thematic, with actionable hints
 const POKEDEX_MESSAGES = {
@@ -56,12 +18,6 @@ const POKEDEX_MESSAGES = {
     "¡Oh! Parece que no era un Pokémon gatuno… 🐶",
     "¡Vaya! Eso no ronronea. Apunta mejor 🔭",
     "La Pokédex no reconoce esta criatura… ¿seguro que es un gato? 🤔",
-  ],
-  blurry: [
-    "¡Está muy lejos! Intenta acercarte más 🔍",
-    "No se ve bien… ¿pruebas desde otro ángulo? 📐",
-    "¡Demasiado borroso! Como cuando se mueven de repente 💨",
-    "Así no hay quien lo identifique… ¡Acércate un poco! 🐾",
   ],
   low_confidence: [
     "Mmm… no está claro. ¿Repetimos la foto? 📸",
@@ -76,15 +32,6 @@ function pickRandom(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// MobileNet (esp. the lightweight alpha=0.5 variant we use) is often only
-// ~8-10% confident even on unambiguous real-world photos — nowhere near the
-// textbook "90%+ on a clean ImageNet sample" people expect. Rejecting on ANY
-// non-cat top-1 guess, regardless of how unsure the model is, meant a real
-// cat photo could get flatly told "this is a cuirass" at 8% confidence. Only
-// hard-reject when the model is actually confident about the wrong class;
-// below this, it's noise and we let the photo through instead.
-const MIN_CONFIDENT_NOT_CAT = 30;
-
 export interface ClassificationResult {
   isCat: boolean;
   topClass: string;
@@ -93,26 +40,33 @@ export interface ClassificationResult {
   message?: string;
 }
 
+// A "cat" detection below this score is too weak to trust outright — ask for
+// a retake instead of accepting or hard-rejecting.
+const GOOD_CAT_SCORE = 50;
+// Detect() is asked for anything down to this score so we can tell "weakly
+// detected a cat" apart from "detected nothing cat-like at all" — coco-ssd's
+// own default (0.5) would silently hide that distinction from us.
+const MIN_DETECT_SCORE = 0.15;
+
 let modelPromise: Promise<any> | null = null;
 let modelCache: any = null;
 
 /**
- * Lazy-load MobileNet (only when a photo needs validation).
- * Model is ~5MB, loaded once and cached.
+ * Lazy-load coco-ssd (only when a photo needs validation).
  */
 async function getModel() {
   if (modelCache) return modelCache;
   if (!modelPromise) {
     const t0 = performance.now();
     // Dynamic import — only loads when called. tfjs must be ready (backend
-    // registered) before mobilenet.load(), otherwise classify() throws
+    // registered) before coco-ssd.load(), otherwise detect() throws
     // "No backend found in registry".
     modelPromise = import("@tensorflow/tfjs").then(async (tf) => {
       await tf.ready();
       console.log(`[classifier] tfjs backend registered: "${tf.getBackend()}"`);
-      const mobilenet = await import("@tensorflow-models/mobilenet");
-      const model = await mobilenet.load({ version: 2, alpha: 0.5 });
-      console.log(`[classifier] MobileNet loaded in ${(performance.now() - t0).toFixed(0)}ms`);
+      const cocoSsd = await import("@tensorflow-models/coco-ssd");
+      const model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+      console.log(`[classifier] coco-ssd loaded in ${(performance.now() - t0).toFixed(0)}ms`);
       return model;
     });
   }
@@ -121,7 +75,7 @@ async function getModel() {
 }
 
 /**
- * Classify a photo and check if it's a cat.
+ * Detect objects in a photo and check if a cat is among them.
  * Returns classification result with quality assessment.
  */
 export async function classifyPhoto(
@@ -129,97 +83,68 @@ export async function classifyPhoto(
 ): Promise<ClassificationResult> {
   const t0 = performance.now();
   console.log(
-    `[classifier] classifying image ${imageElement.naturalWidth}x${imageElement.naturalHeight}` +
-      ` (src len=${imageElement.src.length}, complete=${imageElement.complete})`
+    `[classifier] detecting objects in image ${imageElement.naturalWidth}x${imageElement.naturalHeight}`
   );
   try {
     const model = await getModel();
-    const predictions = await model.classify(imageElement, 3);
+    const detections = await model.detect(imageElement, 20, MIN_DETECT_SCORE);
+    const sorted = [...detections].sort((a: any, b: any) => b.score - a.score);
     console.log(
-      `[classifier] top-3 predictions (${(performance.now() - t0).toFixed(0)}ms):`,
-      predictions?.map((p: any) => `${p.className} (${(p.probability * 100).toFixed(1)}%)`)
+      `[classifier] detections (${(performance.now() - t0).toFixed(0)}ms):`,
+      sorted.map((d: any) => `${d.class} (${(d.score * 100).toFixed(1)}%)`)
     );
 
-    if (!predictions || predictions.length === 0) {
-      console.log("[classifier] no predictions returned → low_confidence");
+    const catDetections = sorted.filter((d: any) => d.class === "cat");
+
+    if (catDetections.length === 0) {
+      const best = sorted[0];
+      const confidence = best ? best.score * 100 : 0;
+      console.log(
+        `[classifier] decision: not_cat (no "cat" among detections` +
+          (best ? `, best guess "${best.class}" at ${confidence.toFixed(1)}%)` : ", nothing detected at all)")
+      );
+      if (!best) {
+        return {
+          isCat: false,
+          topClass: "unknown",
+          confidence: 0,
+          quality: "not_cat",
+          message: pickRandom(POKEDEX_MESSAGES.not_cat),
+        };
+      }
       return {
         isCat: false,
-        topClass: "unknown",
-        confidence: 0,
-        quality: "low_confidence",
-        message: "No se pudo analizar la foto. ¿Seguro que es un gato?",
-      };
-    }
-
-    const top = predictions[0];
-    const isCat = isCatClass(top.className);
-    const confidence = top.probability * 100;
-    console.log(
-      `[classifier] top class "${top.className}" confidence=${confidence.toFixed(1)}% isCatClass=${isCat}`
-    );
-
-    if (!isCat && confidence >= MIN_CONFIDENT_NOT_CAT) {
-      // Try to extract a friendly name from the class
-      const shortClass = top.className.split(",")[0].trim();
-      const hardMessage = POKEDEX_MESSAGES.not_cat_hard
-        .replace(/\{class\}/g, shortClass);
-      console.log(`[classifier] decision: not_cat ("${shortClass}" not in CAT_CLASSES/keywords, confident at ${confidence.toFixed(1)}%)`);
-      return {
-        isCat: false,
-        topClass: top.className,
+        topClass: best.class,
         confidence,
         quality: "not_cat",
-        message: hardMessage,
+        message: POKEDEX_MESSAGES.not_cat_hard.replace(/\{class\}/g, best.class),
       };
     }
 
-    if (!isCat) {
-      // Non-cat top guess, but the model is too unsure to trust it — treat
-      // as low-confidence rather than a hard rejection.
-      console.log(
-        `[classifier] decision: low_confidence (non-cat top guess "${top.className}" only ` +
-          `${confidence.toFixed(1)}% — below ${MIN_CONFIDENT_NOT_CAT}% not_cat threshold)`
-      );
+    const bestCat = catDetections[0];
+    const confidence = bestCat.score * 100;
+    console.log(`[classifier] cat detected at ${confidence.toFixed(1)}% (bbox=${bestCat.bbox.map((n: number) => n.toFixed(0))})`);
+
+    if (confidence < GOOD_CAT_SCORE) {
+      console.log(`[classifier] decision: low_confidence (cat score ${confidence.toFixed(1)}% < ${GOOD_CAT_SCORE}%)`);
       return {
         isCat: true,
-        topClass: top.className,
+        topClass: "cat",
         confidence,
         quality: "low_confidence",
         message: pickRandom(POKEDEX_MESSAGES.low_confidence),
       };
     }
 
-    if (confidence < 40) {
-      console.log(`[classifier] decision: blurry (confidence ${confidence.toFixed(1)}% < 40%)`);
-      return {
-        isCat: true,
-        topClass: top.className,
-        confidence,
-        quality: "blurry",
-        message: pickRandom(POKEDEX_MESSAGES.blurry),
-      };
-    }
-
-    if (confidence < 70) {
-      console.log(`[classifier] decision: low_confidence (confidence ${confidence.toFixed(1)}% < 70%)`);
-      return {
-        isCat: true,
-        topClass: top.className,
-        confidence,
-        quality: "low_confidence",
-        message: pickRandom(POKEDEX_MESSAGES.low_confidence),
-      };
-    }
-
-    console.log(`[classifier] decision: good (confidence ${confidence.toFixed(1)}% >= 70%)`);
+    console.log(`[classifier] decision: good (cat score ${confidence.toFixed(1)}% >= ${GOOD_CAT_SCORE}%)`);
     return {
       isCat: true,
-      topClass: top.className,
+      topClass: "cat",
       confidence,
       quality: "good",
     };
   } catch (err) {
-    console.warn("[classifier] MobileNet classification threw — failing open:", err);
+    console.warn("[classifier] coco-ssd detection threw — failing open:", err);
     // Fail open — don't block the user if the model fails
     return {
       isCat: true,
