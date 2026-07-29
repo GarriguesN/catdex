@@ -94,13 +94,17 @@ let modelCache: any = null;
 async function getModel() {
   if (modelCache) return modelCache;
   if (!modelPromise) {
+    const t0 = performance.now();
     // Dynamic import — only loads when called. tfjs must be ready (backend
     // registered) before mobilenet.load(), otherwise classify() throws
     // "No backend found in registry".
     modelPromise = import("@tensorflow/tfjs").then(async (tf) => {
       await tf.ready();
+      console.log(`[classifier] tfjs backend registered: "${tf.getBackend()}"`);
       const mobilenet = await import("@tensorflow-models/mobilenet");
-      return mobilenet.load({ version: 2, alpha: 0.5 });
+      const model = await mobilenet.load({ version: 2, alpha: 0.5 });
+      console.log(`[classifier] MobileNet loaded in ${(performance.now() - t0).toFixed(0)}ms`);
+      return model;
     });
   }
   modelCache = await modelPromise;
@@ -114,11 +118,21 @@ async function getModel() {
 export async function classifyPhoto(
   imageElement: HTMLImageElement
 ): Promise<ClassificationResult> {
+  const t0 = performance.now();
+  console.log(
+    `[classifier] classifying image ${imageElement.naturalWidth}x${imageElement.naturalHeight}` +
+      ` (src len=${imageElement.src.length}, complete=${imageElement.complete})`
+  );
   try {
     const model = await getModel();
     const predictions = await model.classify(imageElement, 3);
+    console.log(
+      `[classifier] top-3 predictions (${(performance.now() - t0).toFixed(0)}ms):`,
+      predictions?.map((p: any) => `${p.className} (${(p.probability * 100).toFixed(1)}%)`)
+    );
 
     if (!predictions || predictions.length === 0) {
+      console.log("[classifier] no predictions returned → low_confidence");
       return {
         isCat: false,
         topClass: "unknown",
@@ -131,12 +145,16 @@ export async function classifyPhoto(
     const top = predictions[0];
     const isCat = isCatClass(top.className);
     const confidence = top.probability * 100;
+    console.log(
+      `[classifier] top class "${top.className}" confidence=${confidence.toFixed(1)}% isCatClass=${isCat}`
+    );
 
     if (!isCat) {
       // Try to extract a friendly name from the class
       const shortClass = top.className.split(",")[0].trim();
       const hardMessage = POKEDEX_MESSAGES.not_cat_hard
         .replace(/\{class\}/g, shortClass);
+      console.log(`[classifier] decision: not_cat ("${shortClass}" not in CAT_CLASSES/keywords)`);
       return {
         isCat: false,
         topClass: top.className,
@@ -147,6 +165,7 @@ export async function classifyPhoto(
     }
 
     if (confidence < 40) {
+      console.log(`[classifier] decision: blurry (confidence ${confidence.toFixed(1)}% < 40%)`);
       return {
         isCat: true,
         topClass: top.className,
@@ -157,6 +176,7 @@ export async function classifyPhoto(
     }
 
     if (confidence < 70) {
+      console.log(`[classifier] decision: low_confidence (confidence ${confidence.toFixed(1)}% < 70%)`);
       return {
         isCat: true,
         topClass: top.className,
@@ -166,6 +186,7 @@ export async function classifyPhoto(
       };
     }
 
+    console.log(`[classifier] decision: good (confidence ${confidence.toFixed(1)}% >= 70%)`);
     return {
       isCat: true,
       topClass: top.className,
@@ -173,7 +194,7 @@ export async function classifyPhoto(
       quality: "good",
     };
   } catch (err) {
-    console.warn("MobileNet classification failed:", err);
+    console.warn("[classifier] MobileNet classification threw — failing open:", err);
     // Fail open — don't block the user if the model fails
     return {
       isCat: true,

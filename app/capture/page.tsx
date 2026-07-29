@@ -114,7 +114,12 @@ export default function CapturePage() {
     setCapturing(true);
     playShutterSound();
     try {
-      const canvas = captureFrame(videoRef.current);
+      const v = videoRef.current;
+      console.log(
+        `[camera] capturing frame: videoTime=${v.currentTime.toFixed(2)}s readyState=${v.readyState}` +
+          ` paused=${v.paused} size=${v.videoWidth}x${v.videoHeight}`
+      );
+      const canvas = captureFrame(v);
       const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), "image/jpeg", 0.9));
       await processCapture(blob);
     } finally {
@@ -137,12 +142,16 @@ export default function CapturePage() {
   // ── Pipeline: normalize → blur check → MobileNet → pHash + picker ──
 
   async function processCapture(file: Blob) {
+    const captureId = Math.random().toString(36).slice(2, 8);
+    console.log(`[capture:${captureId}] source blob: ${file.type}, ${file.size} bytes`);
+
     // 1. Normalize
     const { blob, thumbBlob } = await normalizePhoto(new File([file], "capture.jpg", { type: file.type || "image/jpeg" }));
     pendingBlobRef.current = blob;
     pendingThumbBlobRef.current = thumbBlob;
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
+    console.log(`[capture:${captureId}] normalized: ${blob.type}, ${blob.size} bytes`);
 
     // 2. Blur check
     const img = new Image();
@@ -152,9 +161,15 @@ export default function CapturePage() {
     bc.width = img.width;
     bc.height = img.height;
     bc.getContext("2d")!.drawImage(img, 0, 0);
-    const bv = blurScore(getImageData(bc));
+    const imageData = getImageData(bc);
+    const bv = blurScore(imageData);
+    console.log(
+      `[capture:${captureId}] ${img.width}x${img.height}, blurScore=${bv.toFixed(1)}` +
+        ` (threshold 50), pixel-sample=${samplePixels(imageData)}`
+    );
 
     if (bv < 50) {
+      console.log(`[capture:${captureId}] rejected: blurry`);
       setBlurCopy(getBlurCopy());
       setScreen("blur");
       return;
@@ -163,16 +178,35 @@ export default function CapturePage() {
     // 3. MobileNet gate
     setScreen("detecting");
     const result = await classifyPhoto(img);
+    console.log(`[capture:${captureId}] classifier result:`, result);
 
     if (result.quality === "not_cat") {
+      console.log(`[capture:${captureId}] rejected: not_cat`);
       setNotCatCopy(getNotCatCopy(result.topClass, result.confidence));
       setIsSpecificAnimal(isKnownAnimal(result.topClass, result.confidence));
       setScreen("notcat");
       return;
     }
 
+    console.log(`[capture:${captureId}] accepted, proceeding to pHash + picker`);
     // 4. pHash + picker
-    await finalizeCapture(getImageData(bc));
+    await finalizeCapture(imageData);
+  }
+
+  /** Cheap visual signature (avg RGB of a 5x5 grid) — logged to confirm each
+   * capture is genuinely a new frame, not a stale/frozen one. */
+  function samplePixels(imageData: ImageData): string {
+    const { data, width, height } = imageData;
+    const samples: number[] = [];
+    for (let gy = 0; gy < 5; gy++) {
+      for (let gx = 0; gx < 5; gx++) {
+        const x = Math.floor((gx + 0.5) * (width / 5));
+        const y = Math.floor((gy + 0.5) * (height / 5));
+        const i = (y * width + x) * 4;
+        samples.push(data[i], data[i + 1], data[i + 2]);
+      }
+    }
+    return samples.join(",");
   }
 
   // ── pHash + picker (shared by the good path and "Usar de todas formas") ──
@@ -267,6 +301,7 @@ export default function CapturePage() {
   }
 
   function resetCapture() {
+    console.log(`[camera] resetCapture: streamLive=${!!streamRef.current}`);
     setScreen("camera");
     setPreviewUrl(null);
     setShowPicker(false);
