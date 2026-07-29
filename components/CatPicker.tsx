@@ -33,13 +33,16 @@ export function CatPicker({ suggestedIds, onSelect, onCancel }: CatPickerProps) 
   async function loadCats() {
     try {
       const pb = getPocketBase();
+      const myId = pb.authStore.record?.id || "";
       const result = await pb.collection("cats").getList(1, 100, {
         sort: "-created",
+        filter: `discoveredBy="${myId}"`,
         expand: "discoveredBy",
       });
 
       // Latest thumb per cat
       const photos = await pb.collection("photos").getList(1, 200, {
+        filter: `user="${myId}"`,
         sort: "-created",
         fields: "id,cat,thumb,photo",
       });

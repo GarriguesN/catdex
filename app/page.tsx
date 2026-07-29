@@ -51,10 +51,15 @@ export default function CollectionPage() {
     setLoading(true);
     try {
       const pb = getPocketBase();
-      const result = await pb.collection("cats").getList(1, 100, { sort: "-created" });
+      const myId = pb.authStore.record?.id || "";
+      const result = await pb.collection("cats").getList(1, 100, {
+        sort: "-created",
+        filter: `discoveredBy="${myId}"`,
+      });
 
       // Latest photo per cat → grid thumbnail
       const photos = await pb.collection("photos").getList(1, 200, {
+        filter: `user="${myId}"`,
         sort: "-created",
         fields: "id,cat,thumb,photo",
       });

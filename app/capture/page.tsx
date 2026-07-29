@@ -229,7 +229,11 @@ export default function CapturePage() {
       pendingHashRef.current = hash;
 
       const pb = getPocketBase();
-      const allCats = await pb.collection("cats").getFullList({ fields: "id,name,hash" });
+      const myId = pb.authStore.record?.id || "";
+      const allCats = await pb.collection("cats").getFullList({
+        filter: `discoveredBy="${myId}"`,
+        fields: "id,name,hash",
+      });
       const scored = allCats
         .filter((cat: any) => cat.hash && cat.hash.length === 16)
         .map((cat: any) => ({ id: cat.id, sim: similarity(hash, cat.hash) }))
