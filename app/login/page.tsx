@@ -40,15 +40,21 @@ export default function LoginPage() {
   }
 
   async function loginWithOAuth(provider: "google" | "apple") {
+    if (provider !== "google") {
+      setError("Apple no disponible aún");
+      return;
+    }
     setLoading(true);
-    setError("");
-    setNotice("");
     try {
       const pb = getPocketBase();
-      await pb.collection("users").authWithOAuth2({ provider, scopes: ["profile", "email"] });
-      done();
-    } catch (err: any) {
-      setError(err?.message || `No se ha podido conectar con ${provider === "google" ? "Google" : "Apple"}`);
+      const methods = await pb.collection("users").listAuthMethods();
+      const p = (methods as any).oauth2?.providers?.[0];
+      if (!p) throw new Error("Google not available");
+      // PocketBase's authURL has all PKCE params EXCEPT redirect_uri — add it
+      const url = p.authUrl + "&redirect_uri=" + encodeURIComponent("https://catdex.nglab.es/pb/api/oauth2-redirect");
+      window.location.href = url;
+    } catch (e: any) {
+      console.error("OAuth error:", e);
       setLoading(false);
     }
   }
