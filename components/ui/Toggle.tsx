@@ -23,8 +23,15 @@ export function Toggle({ checked, onChange, label }: ToggleProps) {
     >
       <span
         className={clsx(
-          "absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-transform",
-          checked ? "translate-x-[1.375rem]" : "translate-x-1"
+          // left-1 pins the resting position explicitly — without it, the
+          // absolutely-positioned span's "auto" left falls back to the CSS
+          // static-position algorithm, which (being the sole child of a
+          // <button>, which defaults to text-align:center) resolves to
+          // roughly the track's center instead of its edge, pushing the
+          // thumb past the track on translate and outside the parent's
+          // overflow-hidden card.
+          "absolute left-1 top-1 w-6 h-6 rounded-full bg-white shadow-md transition-transform",
+          checked ? "translate-x-5" : "translate-x-0"
         )}
       />
     </button>
