@@ -56,12 +56,13 @@ export function BottomNav() {
           className="absolute left-1/2 -translate-x-1/2 -top-7 w-[4.5rem] h-[4.5rem] rounded-full bg-catdex-surface p-1 shadow-fab transition-transform active:scale-95"
         >
           <span className="block w-full h-full rounded-full overflow-hidden ring-2 ring-catdex-orange/20">
+            {/* icon-192.png has a ~3% maskable safe-zone margin — scale up so it clears the circular crop, see components/ui/Logo.tsx */}
             <Image
               src="/icon-192.png"
               alt=""
               width={64}
               height={64}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover scale-[1.15]"
               unoptimized
             />
           </span>
