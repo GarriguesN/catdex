@@ -107,6 +107,29 @@ export async function listPendingOutgoing(): Promise<FriendEntry[]> {
   return rows.map((r: any) => toEntry(r, "addressee"));
 }
 
+export type RelationshipStatus = "none" | "friends" | "incoming" | "outgoing";
+
+/**
+ * Current relationship with another user — one query, either direction,
+ * any status. Used to turn the generic "duplicate friendship" create error
+ * into a precise message (e.g. "you already have a pending request from
+ * them, go accept it") instead of leaving the user unable to find the
+ * existing row.
+ */
+export async function getRelationshipStatus(otherId: string): Promise<RelationshipStatus> {
+  const pb = getPocketBase();
+  const me = pb.authStore.record?.id;
+  if (!me) return "none";
+  const rows = await pb.collection("friendships").getFullList({
+    filter: `(requester="${me}" && addressee="${otherId}") || (requester="${otherId}" && addressee="${me}")`,
+    fields: "requester,status",
+  });
+  const row = rows[0] as any;
+  if (!row) return "none";
+  if (row.status === "accepted") return "friends";
+  return row.requester === me ? "outgoing" : "incoming";
+}
+
 /** Nº of cats a friend has discovered — reads only totalItems. */
 export async function countFriendCats(friendId: string): Promise<number> {
   const result = await getPocketBase()

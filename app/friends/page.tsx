@@ -12,6 +12,7 @@ import {
   listFriends,
   listPendingIncoming,
   listPendingOutgoing,
+  getRelationshipStatus,
   type FriendEntry,
   type FriendUser,
 } from "@/lib/friends";
@@ -93,8 +94,22 @@ export default function FriendsPage() {
       load();
     } catch (err) {
       console.error("Failed to send request:", err);
-      setResolveError("No se ha podido enviar la solicitud. ¿Ya sois amigos?");
+      // The backend rejects duplicates (pb_hooks/friendships.pb.js) without
+      // saying which direction the existing row is in — look it up so the
+      // user knows exactly where to find it instead of a generic "already
+      // friends?" that may not even be true.
+      const status = await getRelationshipStatus(preview.id).catch(() => "none");
+      if (status === "friends") {
+        setResolveError("Ya sois amigos.");
+      } else if (status === "incoming") {
+        setResolveError('Ya te había enviado una solicitud — acéptala en "Solicitudes recibidas".');
+      } else if (status === "outgoing") {
+        setResolveError("Ya le enviaste una solicitud — está pendiente de que la acepte.");
+      } else {
+        setResolveError("No se ha podido enviar la solicitud. Inténtalo de nuevo.");
+      }
       setPreview(null);
+      load();
     }
     setSending(false);
   }
