@@ -16,6 +16,17 @@ export function getPocketBase(): PocketBase {
   return pb;
 }
 
+/**
+ * True if `err` is PocketBase's own auto-cancellation (a newer request to the
+ * same endpoint superseded this one) rather than a real failure — e.g. a
+ * refetch-on-focus firing while an earlier load of the same collection is
+ * still in flight. Callers should skip logging/surfacing these.
+ * https://github.com/pocketbase/js-sdk#auto-cancellation
+ */
+export function isAbortError(err: unknown): boolean {
+  return !!(err as { isAbort?: boolean })?.isAbort;
+}
+
 /** Get typed records from a PocketBase collection */
 export async function getList<T = any>(
   collection: string,

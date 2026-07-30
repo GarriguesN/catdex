@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 
 /** Orange teardrop pin with paw — matches the map design. */
 const pawPin = L.divIcon({
@@ -43,7 +43,9 @@ export default function MiniMap({ catId }: { catId: string }) {
         filter: `cat="${catId}" && lat!=null`,
       });
       setPhotos(result.map((p: any) => ({ lat: p.lat, lng: p.lng })));
-    } catch (err) { console.error("Failed to load mini map photos:", err); }
+    } catch (err) {
+      if (!isAbortError(err)) console.error("Failed to load mini map photos:", err);
+    }
     setLoading(false);
   }
 

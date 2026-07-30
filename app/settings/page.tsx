@@ -5,8 +5,9 @@ import { User, Bell, Volume2, Lock, FileUp, Info } from "lucide-react";
 import { TopBar } from "@/components/ui/TopBar";
 import { SettingsGroup, SettingsRow } from "@/components/ui/SettingsRow";
 import { areSoundsEnabled } from "@/lib/sound-prefs";
+import { CHANGELOG } from "@/lib/changelog";
 
-const APP_VERSION = "v1.0.0";
+const APP_VERSION = `v${CHANGELOG[0].version}`;
 
 export default function SettingsPage() {
   const [soundsOn, setSoundsOn] = useState(true);

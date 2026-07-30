@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getFavorites } from "@/lib/favorites";
 import { formatTimeAgo } from "@/lib/utils";
 import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
@@ -91,8 +91,9 @@ export default function ProfilePage() {
       setFriendCatCounts(Object.fromEntries(f.map((e, i) => [e.friend.id, counts[i]])));
     } catch (err) {
       // friendships collection may not exist yet (backend not migrated) —
-      // the profile still renders without the social bits
-      console.error("Failed to load friends:", err);
+      // the profile still renders without the social bits. Ignore
+      // auto-cancellation too (e.g. refetch-on-focus superseding this call).
+      if (!isAbortError(err)) console.error("Failed to load friends:", err);
     }
   }, []);
 
@@ -121,7 +122,7 @@ export default function ProfilePage() {
         setCatCount(catsResult.totalItems);
         setAchievements(achievementsResult as unknown as AchievementRec[]);
       } catch (err) {
-        console.error("Failed to load profile:", err);
+        if (!isAbortError(err)) console.error("Failed to load profile:", err);
       }
       setLoading(false);
     }

@@ -24,7 +24,7 @@ import {
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import clsx from "clsx";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -93,7 +93,7 @@ function CatDetailInner() {
       });
       setPhotos(photosResult as unknown as Photo[]);
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) console.error(err);
     }
     setLoading(false);
   }
@@ -334,7 +334,7 @@ function CatDetailInner() {
 
       {/* ── Content card — slides up over the fixed hero as the page scrolls ── */}
       <div
-        className="relative z-10 -mx-3 sm:-mx-4 bg-catdex-cream rounded-t-3xl shadow-float px-4 pt-6 space-y-4"
+        className="relative z-10 -mx-3 sm:-mx-4 bg-catdex-cream rounded-t-3xl px-4 pt-6 space-y-4"
         style={{ marginTop: `calc(${HERO_H} - ${HERO_OVERLAP})` }}
       >
         {photos.length > 1 && (

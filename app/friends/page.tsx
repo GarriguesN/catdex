@@ -5,6 +5,7 @@ import { Copy, Check, UserPlus, Trash2, X, RefreshCw } from "lucide-react";
 import clsx from "clsx";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
+import { isAbortError } from "@/lib/pocketbase";
 import { IconButton } from "@/components/ui/IconButton";
 import {
   getMyInviteCode,
@@ -56,7 +57,7 @@ export default function FriendsPage() {
       setIncoming(inc);
       setOutgoing(out);
     } catch (err) {
-      console.error("Failed to load friendships:", err);
+      if (!isAbortError(err)) console.error("Failed to load friendships:", err);
     }
     setLoading(false);
     setRefreshing(false);

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Flame, Trophy, Heart, ChevronDown, TrendingUp, Medal } from "lucide-react";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getFavorites } from "@/lib/favorites";
 import { TopBar } from "@/components/ui/TopBar";
 import { Card } from "@/components/ui/Card";
@@ -68,7 +68,7 @@ export default function FullStatsPage() {
       setCatCreatedDates(catsResult.map((c: any) => new Date(c.created)));
       setUsers((usersResult as unknown as RankUser[]).filter((u) => (u.score || 0) > 0));
     } catch (err) {
-      console.error("Failed to load stats:", err);
+      if (!isAbortError(err)) console.error("Failed to load stats:", err);
     }
     setLoading(false);
   }

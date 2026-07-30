@@ -11,7 +11,7 @@ import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
 import { reverseGeocode } from "@/lib/geo";
 import { classifyPhoto, preloadClassifier } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { playShutterSound } from "@/lib/sounds";
 import { CatPicker } from "@/components/CatPicker";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
@@ -241,7 +241,7 @@ export default function CapturePage() {
 
       setSuggestedIds(scored.map((s: any) => s.id));
     } catch (err) {
-      console.error("pHash/lookup failed:", err);
+      if (!isAbortError(err)) console.error("pHash/lookup failed:", err);
       setSuggestedIds([]);
     }
     setShowPicker(true);
