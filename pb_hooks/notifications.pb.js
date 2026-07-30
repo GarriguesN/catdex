@@ -1,11 +1,13 @@
 /**
  * PocketBase hooks — writes to the `notifications` collection so the bell
  * icon in /profile has a single source to count/list from instead of
- * recomputing from friendships/shares ad-hoc on the client.
- * Deploy: copy to /opt/pocketbase/pb_hooks/ on CT 120
+ * recomputing from friendships/shares ad-hoc on the client, AND fires a real
+ * Web Push (best-effort — a user with no subscription just gets the in-app
+ * row) so these reach a closed app too. Deploy: copy to
+ * /opt/pocketbase/pb_hooks/ on CT 120, together with push-utils.js.
  */
 
-function notify(userId, type, refId) {
+function notify(userId, type, refId, pushTitle, pushBody, pushUrl) {
   try {
     const collection = $app.findCollectionByNameOrId("notifications");
     const rec = new Record(collection);
@@ -17,12 +19,25 @@ function notify(userId, type, refId) {
   } catch (err) {
     console.error("[catdex:notifications] failed to write:", err);
   }
+
+  if (pushTitle) {
+    require(`${__hooks}/push-utils.js`).sendPush(userId, pushTitle, pushBody, pushUrl);
+  }
 }
 
 // ═══ New friend request → notify the addressee ═══
 onRecordAfterCreateSuccess((e) => {
   if (e.record.get("status") === "pending") {
-    notify(e.record.get("addressee"), "friend_request", e.record.id);
+    const addressee = e.record.get("addressee");
+    const requester = $app.findRecordById("users", e.record.get("requester"));
+    notify(
+      addressee,
+      "friend_request",
+      e.record.id,
+      "Nueva solicitud de amistad",
+      `${requester ? requester.get("name") || "Alguien" : "Alguien"} quiere ser tu amigo en CatDex.`,
+      "/friends"
+    );
   }
   e.next();
 }, "friendships");
@@ -40,6 +55,8 @@ onRecordAfterCreateSuccess((e) => {
   }
 
   try {
+    const sharer = $app.findRecordById("users", sharedBy);
+    const cat = $app.findRecordById("cats", catId);
     const friendships = $app.findRecordsByFilter(
       "friendships",
       "status = 'accepted' && (requester = {:u} || addressee = {:u})",
@@ -51,7 +68,14 @@ onRecordAfterCreateSuccess((e) => {
     friendships.forEach((f) => {
       const requester = f.get("requester");
       const friendId = requester === sharedBy ? f.get("addressee") : requester;
-      notify(friendId, "share", catId);
+      notify(
+        friendId,
+        "share",
+        catId,
+        "Nueva captura compartida",
+        `${sharer ? sharer.get("name") || "Un amigo" : "Un amigo"} compartió ${cat ? `"${cat.get("name")}"` : "un gato"} contigo.`,
+        `/cat?id=${catId}`
+      );
     });
   } catch (err) {
     console.error("[catdex:notifications] share fan-out failed:", err);

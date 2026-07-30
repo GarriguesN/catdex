@@ -7,6 +7,7 @@
 #   2. Adds `lastCaptureDate` (text, "YYYY-MM-DD") to users.
 #   3. Creates the `shares` collection (skips if present).
 #   4. Creates the `notifications` collection (skips if present).
+#   5. Creates the `push_subscriptions` collection (skips if present).
 #
 # Usage: PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... bash migrate-gamification.sh
 # Credentials MUST be set as env vars — NEVER hardcoded.
@@ -115,4 +116,36 @@ else
   }" | python3 -c "import sys,json; print('  notifications:', json.load(sys.stdin).get('id','ERR'))"
 fi
 
-echo "✅ Migration complete. Remember to deploy pb_hooks/*.pb.js to /opt/pocketbase/pb_hooks/ and restart PocketBase."
+# ── push_subscriptions collection ──
+PUSH_ID=$(get_coll_id push_subscriptions)
+if [ -n "$PUSH_ID" ]; then
+  echo "push_subscriptions collection already exists ($PUSH_ID)"
+else
+  echo "Creating push_subscriptions collection..."
+  curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+    \"name\": \"push_subscriptions\",
+    \"type\": \"base\",
+    \"fields\": [
+      {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+      {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+      {\"name\":\"endpoint\",\"type\":\"text\",\"required\":true},
+      {\"name\":\"p256dh\",\"type\":\"text\",\"required\":true},
+      {\"name\":\"auth\",\"type\":\"text\",\"required\":true},
+      {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+    ],
+    \"indexes\": [\"CREATE UNIQUE INDEX idx_push_subscriptions_endpoint ON push_subscriptions (endpoint)\"],
+    \"listRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+    \"viewRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+    \"createRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+    \"updateRule\": null,
+    \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
+  }" | python3 -c "import sys,json; print('  push_subscriptions:', json.load(sys.stdin).get('id','ERR'))"
+fi
+
+echo "✅ Migration complete. Remember to:"
+echo "   1. Deploy pb_hooks/*.pb.js to /opt/pocketbase/pb_hooks/ and restart PocketBase."
+echo "   2. Set VAPID_PRIVATE_KEY, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_SUBJECT and"
+echo "      PUSH_INTERNAL_SECRET in the Next.js deploy's env."
+echo "   3. Set PUSH_INTERNAL_SECRET and PUSH_INTERNAL_URL in PocketBase's OWN process"
+echo "      env (read via \$os.getenv in pb_hooks/push-utils.js) — a different process"
+echo "      env than the Next.js one, even if both run on the same host (CT 120)."

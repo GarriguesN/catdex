@@ -6,18 +6,20 @@ interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label?: string;
+  disabled?: boolean;
 }
 
 /** iOS-style switch — orange when on. */
-export function Toggle({ checked, onChange, label }: ToggleProps) {
+export function Toggle({ checked, onChange, label, disabled }: ToggleProps) {
   return (
     <button
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={clsx(
-        "relative w-[3.25rem] h-8 rounded-full transition-colors shrink-0",
+        "relative w-[3.25rem] h-8 rounded-full transition-colors shrink-0 disabled:opacity-50",
         checked ? "bg-catdex-orange" : "bg-catdex-gray-light/40"
       )}
     >

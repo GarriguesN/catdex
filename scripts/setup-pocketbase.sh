@@ -169,6 +169,26 @@ NOTIF_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
   \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
 }" | python3 -c "import sys,json; print('notifications:', json.load(sys.stdin).get('id','ERR'))")
 
+# ── push_subscriptions ──
+PUSH_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"push_subscriptions\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"endpoint\",\"type\":\"text\",\"required\":true},
+    {\"name\":\"p256dh\",\"type\":\"text\",\"required\":true},
+    {\"name\":\"auth\",\"type\":\"text\",\"required\":true},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+  ],
+  \"indexes\": [\"CREATE UNIQUE INDEX idx_push_subscriptions_endpoint ON push_subscriptions (endpoint)\"],
+  \"listRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"viewRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"createRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"updateRule\": null,
+  \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
+}" | python3 -c "import sys,json; print('push_subscriptions:', json.load(sys.stdin).get('id','ERR'))")
+
 # ── users: inviteCode field + unique index, gamification fields ──
 echo "Patching users with inviteCode + gamification fields..."
 curl -s "$BASE/api/collections/$USERS_ID" -H "$H" | python3 -c "
