@@ -8,6 +8,17 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.0",
+    date: "Agosto 2026",
+    items: [
+      "Nueva pestaña Competición: ranking, duelos y rachas en un solo lugar",
+      "Perfiles de amigos: visita el perfil de cualquier amigo y ve su colección",
+      "Descubridor visible: cada gato muestra quién lo encontró primero",
+      "Feed principal rediseñado con actividad de toda la colonia",
+      "Navegación inferior reorganizada con sección social dedicada",
+    ],
+  },
+  {
     version: "1.2.0",
     date: "Agosto 2026",
     items: [
