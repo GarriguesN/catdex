@@ -94,7 +94,9 @@ Más allá de las 4 fases originales. Todo lo de aquí abajo es **candidato a in
 
 ---
 
-## Fase B — Progresión y estatus (para que "subir" se sienta bien)
+## Fase B — Progresión y estatus (para que "subir" se sienta bien) — ✅ hecho
+
+Lógica pura en `lib/gamification-defs.ts`, cubierta por tests unitarios (`lib/gamification-defs.test.ts`, 21 casos incluyendo boundaries de rango y conteos 0/1/2/3+).
 
 - **Rangos/niveles por score**: título visible en el perfil (Novato → Cazador → Guardián de la Colonia → Leyenda Callejera) por umbrales de `score`, mostrado junto al avatar — reutiliza el dato que ya existe (`users.score`), es una tabla de mapeo en el cliente, cero cambios de backend.
 - **Vitrina de rareza colaborativa**: un gato "raro" no depende de IA (coco-ssd no distingue razas) — se define por señales que sí tenemos: cuántos usuarios distintos lo han fotografiado. Un gato visto por 1 solo usuario es "tuyo"; visto por 3+ usuarios es "Gato Legendario de la colonia" — dato derivable de `photos.user` agrupado por `cat`, mostrable en `app/cat/page.tsx`.

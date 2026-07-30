@@ -20,12 +20,14 @@ import {
   Moon,
   Cloud,
   Check,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import clsx from "clsx";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getOrCreateShareUrl } from "@/lib/shares";
+import { rarityForDiscovererCount } from "@/lib/gamification-defs";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -52,6 +54,7 @@ interface Photo {
   lat?: number;
   lng?: number;
   created?: string;
+  user?: string;
 }
 
 function CatDetailInner() {
@@ -229,6 +232,8 @@ function CatDetailInner() {
   const userId = pb.authStore.record?.id;
   const isOwner = cat.discoveredBy === userId;
   const hasLocation = photos.some((p) => p.lat && p.lng);
+  const discovererCount = new Set(photos.map((p) => p.user).filter(Boolean)).size;
+  const rarity = rarityForDiscovererCount(discovererCount);
   const capturedAt = mainPhoto?.created ? new Date(mainPhoto.created) : cat.created ? new Date(cat.created) : null;
 
   const dateLabel = capturedAt?.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
@@ -398,6 +403,22 @@ function CatDetailInner() {
                   </button>
                 )}
               </div>
+            )}
+
+            {/* Collaborative rarity — only shown when more than one person
+                has photographed this cat (see lib/gamification-defs.ts) */}
+            {rarity.key !== "own" && (
+              <span
+                className={clsx(
+                  "inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[0.6875rem] font-bold",
+                  rarity.key === "legendary"
+                    ? "bg-catdex-orange text-white"
+                    : "bg-catdex-orange/10 text-catdex-orange"
+                )}
+              >
+                <Sparkles className="h-3 w-3" />
+                {rarity.label}
+              </span>
             )}
 
             {/* Date + location rows */}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import clsx from "clsx";
 import {
   Bell,
   Calendar,
@@ -23,6 +24,7 @@ import { formatTimeAgo } from "@/lib/utils";
 import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
 import { listFriends, listPendingIncoming, countFriendCats, type FriendEntry } from "@/lib/friends";
 import { listUnreadNotifications, markAllNotificationsRead, type NotificationEntry } from "@/lib/notifications";
+import { rankForScore, highestRarity, RARITY_FRAME_CLASS } from "@/lib/gamification-defs";
 import { Card } from "@/components/ui/Card";
 import { Sheet } from "@/components/ui/Sheet";
 import { AchievementBadge, AchievementCircle } from "@/components/AchievementBadge";
@@ -205,6 +207,11 @@ export default function ProfilePage() {
   const collectingSince = user?.created
     ? new Date(user.created).toLocaleDateString("en-US", { month: "long", year: "numeric" })
     : "";
+  const rank = rankForScore(user?.score || 0);
+  const avatarFrameClass =
+    RARITY_FRAME_CLASS[
+      highestRarity(achievements.map((a) => a.badgeCode), ACHIEVEMENT_DEFS) || ""
+    ] || "";
 
   if (!user || loading) {
     return (
@@ -249,9 +256,14 @@ export default function ProfilePage() {
         >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="w-28 h-28 rounded-full object-cover" />
+            <img src={avatarUrl} alt="" className={clsx("w-28 h-28 rounded-full object-cover", avatarFrameClass)} />
           ) : (
-            <span className="w-28 h-28 rounded-full bg-catdex-orange/15 text-catdex-orange text-4xl font-bold flex items-center justify-center">
+            <span
+              className={clsx(
+                "w-28 h-28 rounded-full bg-catdex-orange/15 text-catdex-orange text-4xl font-bold flex items-center justify-center",
+                avatarFrameClass
+              )}
+            >
               {initial}
             </span>
           )}
@@ -260,6 +272,9 @@ export default function ProfilePage() {
           </span>
         </button>
         <h2 className="text-[1.5rem] font-bold tracking-tight mt-3">{name || "Sin nombre"}</h2>
+        <span className="text-[0.75rem] font-bold text-catdex-orange bg-catdex-orange/10 rounded-full px-2.5 py-0.5 mt-1">
+          {rank.name}
+        </span>
         {collectingSince && (
           <p className="inline-flex items-center gap-1.5 text-[0.8125rem] text-catdex-text-muted mt-1">
             <Calendar className="h-3.5 w-3.5" />
