@@ -8,6 +8,8 @@
 #   3. Creates the `shares` collection (skips if present).
 #   4. Creates the `notifications` collection (skips if present).
 #   5. Creates the `push_subscriptions` collection (skips if present).
+#   6. Creates the `weekly_snapshots` collection (skips if present).
+#   7. Creates the `duels` collection (skips if present).
 #
 # Usage: PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... bash migrate-gamification.sh
 # Credentials MUST be set as env vars — NEVER hardcoded.
@@ -140,6 +142,59 @@ else
     \"updateRule\": null,
     \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
   }" | python3 -c "import sys,json; print('  push_subscriptions:', json.load(sys.stdin).get('id','ERR'))"
+fi
+
+# ── weekly_snapshots collection ──
+SNAP_ID=$(get_coll_id weekly_snapshots)
+if [ -n "$SNAP_ID" ]; then
+  echo "weekly_snapshots collection already exists ($SNAP_ID)"
+else
+  echo "Creating weekly_snapshots collection..."
+  curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+    \"name\": \"weekly_snapshots\",
+    \"type\": \"base\",
+    \"fields\": [
+      {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+      {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+      {\"name\":\"weekKey\",\"type\":\"text\",\"required\":true},
+      {\"name\":\"score\",\"type\":\"number\",\"required\":true},
+      {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+    ],
+    \"indexes\": [\"CREATE UNIQUE INDEX idx_weekly_snapshots_user_week ON weekly_snapshots (user, weekKey)\"],
+    \"listRule\": \"@request.auth.id != ''\",
+    \"viewRule\": \"@request.auth.id != ''\",
+    \"createRule\": null,
+    \"updateRule\": null,
+    \"deleteRule\": null
+  }" | python3 -c "import sys,json; print('  weekly_snapshots:', json.load(sys.stdin).get('id','ERR'))"
+fi
+
+# ── duels collection ──
+DUELS_ID=$(get_coll_id duels)
+if [ -n "$DUELS_ID" ]; then
+  echo "duels collection already exists ($DUELS_ID)"
+else
+  echo "Creating duels collection..."
+  curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+    \"name\": \"duels\",
+    \"type\": \"base\",
+    \"fields\": [
+      {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+      {\"name\":\"challenger\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+      {\"name\":\"opponent\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+      {\"name\":\"status\",\"type\":\"select\",\"required\":true,\"maxSelect\":1,\"values\":[\"active\",\"finished\"]},
+      {\"name\":\"endsAt\",\"type\":\"date\",\"required\":true},
+      {\"name\":\"challengerStartScore\",\"type\":\"number\",\"required\":true},
+      {\"name\":\"opponentStartScore\",\"type\":\"number\",\"required\":true},
+      {\"name\":\"winnerSide\",\"type\":\"select\",\"maxSelect\":1,\"values\":[\"challenger\",\"opponent\",\"tie\"]},
+      {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+    ],
+    \"listRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\",
+    \"viewRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\",
+    \"createRule\": \"@request.auth.id != '' && challenger = @request.auth.id\",
+    \"updateRule\": null,
+    \"deleteRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\"
+  }" | python3 -c "import sys,json; print('  duels:', json.load(sys.stdin).get('id','ERR'))"
 fi
 
 echo "✅ Migration complete. Remember to:"

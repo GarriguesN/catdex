@@ -108,7 +108,8 @@ Lógica pura en `lib/gamification-defs.ts`, cubierta por tests unitarios (`lib/g
 
 ## Fase C — Social: competencia, cooperación y compartir (el gancho que pediste)
 
-### C.1 Ranking semanal y duelos entre amigos
+### C.1 Ranking semanal y duelos entre amigos — ✅ hecho
+Lógica pura (`weekMondayKey`, `computeWeeklyDelta`, `computeDuelWinner`) en `lib/ranking.ts`, con tests (`lib/ranking.test.ts`, `lib/duels.test.ts`) cubriendo boundaries de semana/año, deltas negativos por clock-skew, y la traducción de perspectiva challenger/opponent → yo/ellos (la parte con más riesgo de bug sutil). El cron de snapshot semanal y el de cierre de duelos viven en `pb_hooks/` (goja) y no son testeables desde Node — verificados por revisión + build/lint, mismo criterio que el resto de hooks de esta sesión.
 - Ranking que resetea cada lunes, solo entre tus amigos aceptados — cron de PocketBase (`cronAdd`, semanal) que congela el `score` de cada usuario el domingo a medianoche en una nueva collection `weekly_snapshots` (`user`, `weekAt`, `scoreAtSnapshot`); el ranking de la semana = `score actual - scoreAtSnapshot`, filtrado a `listFriends()`. Sin divisiones/ascenso-descenso — un top simple, sin castigo por bajar puestos.
 - Duelos 1 a 1: un amigo reta a otro a "quién captura más en 7 días" — collection `duels` (`challenger`, `opponent`, `startsAt`, `endsAt`, `challengerScore`, `opponentScore`), cerrada por el mismo cron semanal o uno propio. Notificación de inicio y de resultado.
 - El mapa **no** participa de esto — sigue mostrando solo dónde ha estado cada uno, nunca "territorio" de nadie.

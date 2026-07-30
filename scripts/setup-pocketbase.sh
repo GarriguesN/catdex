@@ -189,6 +189,47 @@ PUSH_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
   \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
 }" | python3 -c "import sys,json; print('push_subscriptions:', json.load(sys.stdin).get('id','ERR'))")
 
+# ── weekly_snapshots ──
+SNAP_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"weekly_snapshots\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"weekKey\",\"type\":\"text\",\"required\":true},
+    {\"name\":\"score\",\"type\":\"number\",\"required\":true},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+  ],
+  \"indexes\": [\"CREATE UNIQUE INDEX idx_weekly_snapshots_user_week ON weekly_snapshots (user, weekKey)\"],
+  \"listRule\": \"@request.auth.id != ''\",
+  \"viewRule\": \"@request.auth.id != ''\",
+  \"createRule\": null,
+  \"updateRule\": null,
+  \"deleteRule\": null
+}" | python3 -c "import sys,json; print('weekly_snapshots:', json.load(sys.stdin).get('id','ERR'))")
+
+# ── duels ──
+DUELS_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"duels\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"challenger\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"opponent\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"status\",\"type\":\"select\",\"required\":true,\"maxSelect\":1,\"values\":[\"active\",\"finished\"]},
+    {\"name\":\"endsAt\",\"type\":\"date\",\"required\":true},
+    {\"name\":\"challengerStartScore\",\"type\":\"number\",\"required\":true},
+    {\"name\":\"opponentStartScore\",\"type\":\"number\",\"required\":true},
+    {\"name\":\"winnerSide\",\"type\":\"select\",\"maxSelect\":1,\"values\":[\"challenger\",\"opponent\",\"tie\"]},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+  ],
+  \"listRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\",
+  \"viewRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\",
+  \"createRule\": \"@request.auth.id != '' && challenger = @request.auth.id\",
+  \"updateRule\": null,
+  \"deleteRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\"
+}" | python3 -c "import sys,json; print('duels:', json.load(sys.stdin).get('id','ERR'))")
+
 # ── users: inviteCode field + unique index, gamification fields ──
 echo "Patching users with inviteCode + gamification fields..."
 curl -s "$BASE/api/collections/$USERS_ID" -H "$H" | python3 -c "
