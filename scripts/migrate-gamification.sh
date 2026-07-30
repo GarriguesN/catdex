@@ -10,6 +10,8 @@
 #   5. Creates the `push_subscriptions` collection (skips if present).
 #   6. Creates the `weekly_snapshots` collection (skips if present).
 #   7. Creates the `duels` collection (skips if present).
+#   8. Creates the `reactions` collection (skips if present).
+#   9. Adds `dedicatedTo` (relation) + `message` (text) to `shares`, for postcards.
 #
 # Usage: PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... bash migrate-gamification.sh
 # Credentials MUST be set as env vars — NEVER hardcoded.
@@ -44,6 +46,7 @@ get_coll_id() {
 
 USERS_ID=$(get_coll_id users)
 CATS_ID=$(get_coll_id cats)
+PHOTOS_ID=$(get_coll_id photos)
 
 # ── users.currentStreak + users.lastCaptureDate ──
 echo "Adding currentStreak/lastCaptureDate fields to users..."
@@ -196,6 +199,55 @@ else
     \"deleteRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\"
   }" | python3 -c "import sys,json; print('  duels:', json.load(sys.stdin).get('id','ERR'))"
 fi
+
+# ── reactions collection ──
+REACT_ID=$(get_coll_id reactions)
+if [ -n "$REACT_ID" ]; then
+  echo "reactions collection already exists ($REACT_ID)"
+else
+  echo "Creating reactions collection..."
+  curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+    \"name\": \"reactions\",
+    \"type\": \"base\",
+    \"fields\": [
+      {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+      {\"name\":\"photo\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$PHOTOS_ID\"},
+      {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+      {\"name\":\"emoji\",\"type\":\"select\",\"required\":true,\"maxSelect\":1,\"values\":[\"🐾\",\"❤️\",\"😻\",\"😂\"]},
+      {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+      {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
+    ],
+    \"indexes\": [\"CREATE UNIQUE INDEX idx_reactions_photo_user ON reactions (photo, user)\"],
+    \"listRule\": \"@request.auth.id != ''\",
+    \"viewRule\": \"@request.auth.id != ''\",
+    \"createRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+    \"updateRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+    \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
+  }" | python3 -c "import sys,json; print('  reactions:', json.load(sys.stdin).get('id','ERR'))"
+fi
+
+# ── shares: dedicatedTo + message, for postcards (C.4) ──
+echo "Adding dedicatedTo/message fields to shares..."
+curl -s "$BASE/api/collections/$(get_coll_id shares)" -H "$H" | python3 -c "
+import sys, json
+c = json.load(sys.stdin)
+fields = c['fields']
+added = []
+if not any(f['name'] == 'dedicatedTo' for f in fields):
+    fields = fields + [{'name': 'dedicatedTo', 'type': 'relation', 'collectionId': '$USERS_ID'}]
+    added.append('dedicatedTo')
+if not any(f['name'] == 'message' for f in fields):
+    fields = fields + [{'name': 'message', 'type': 'text'}]
+    added.append('message')
+print(json.dumps({'fields': fields} if added else {}))
+" > /tmp/catdex_patch.json
+if [ "$(cat /tmp/catdex_patch.json)" != "{}" ]; then
+  curl -s -X PATCH "$BASE/api/collections/$(get_coll_id shares)" -H "$H" -H "$CT" -d @/tmp/catdex_patch.json > /dev/null
+  echo "  shares.dedicatedTo / shares.message added"
+else
+  echo "  shares.dedicatedTo / shares.message already present"
+fi
+rm -f /tmp/catdex_patch.json
 
 echo "✅ Migration complete. Remember to:"
 echo "   1. Deploy pb_hooks/*.pb.js to /opt/pocketbase/pb_hooks/ and restart PocketBase."

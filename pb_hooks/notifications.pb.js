@@ -42,7 +42,8 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "friendships");
 
-// ═══ New share → notify the sharer's accepted friends ═══
+// ═══ New share → notify either one dedicatee (postcard) or all accepted
+// friends (broadcast share) ═══
 // refId is the cat id (not the share id) — friends already have access to
 // that cat's own page (/cat?id=...), no need to resolve the shares
 // collection (whose rules only allow the sharer to read their own rows).
@@ -57,28 +58,65 @@ onRecordAfterCreateSuccess((e) => {
   try {
     const sharer = $app.findRecordById("users", sharedBy);
     const cat = $app.findRecordById("cats", catId);
-    const friendships = $app.findRecordsByFilter(
-      "friendships",
-      "status = 'accepted' && (requester = {:u} || addressee = {:u})",
-      "",
-      0,
-      0,
-      { u: sharedBy }
-    );
-    friendships.forEach((f) => {
-      const requester = f.get("requester");
-      const friendId = requester === sharedBy ? f.get("addressee") : requester;
-      notify(
-        friendId,
-        "share",
-        catId,
-        "Nueva captura compartida",
-        `${sharer ? sharer.get("name") || "Un amigo" : "Un amigo"} compartió ${cat ? `"${cat.get("name")}"` : "un gato"} contigo.`,
-        `/cat?id=${catId}`
+    const sharerName = sharer ? sharer.get("name") || "Un amigo" : "Un amigo";
+    const dedicatedTo = e.record.get("dedicatedTo");
+
+    if (dedicatedTo) {
+      // Postcard — one recipient, optionally with a personal message.
+      const message = e.record.get("message");
+      const body = message
+        ? `${sharerName}: "${message}"`
+        : `${sharerName} te dedicó ${cat ? `"${cat.get("name")}"` : "una captura"}.`;
+      notify(dedicatedTo, "share", catId, "Nueva postal", body, `/cat?id=${catId}`);
+    } else {
+      const friendships = $app.findRecordsByFilter(
+        "friendships",
+        "status = 'accepted' && (requester = {:u} || addressee = {:u})",
+        "",
+        0,
+        0,
+        { u: sharedBy }
       );
-    });
+      friendships.forEach((f) => {
+        const requester = f.get("requester");
+        const friendId = requester === sharedBy ? f.get("addressee") : requester;
+        notify(
+          friendId,
+          "share",
+          catId,
+          "Nueva captura compartida",
+          `${sharerName} compartió ${cat ? `"${cat.get("name")}"` : "un gato"} contigo.`,
+          `/cat?id=${catId}`
+        );
+      });
+    }
   } catch (err) {
     console.error("[catdex:notifications] share fan-out failed:", err);
   }
   e.next();
 }, "shares");
+
+// ═══ New reaction → notify the photo's owner ═══
+onRecordAfterCreateSuccess((e) => {
+  try {
+    const photo = $app.findRecordById("photos", e.record.get("photo"));
+    const ownerId = photo ? photo.get("user") : null;
+    const reactorId = e.record.get("user");
+    // Bare `return` here would skip e.next() below and stop the hook chain
+    // (same pitfall documented in scoring.pb.js) — guard with an if instead.
+    if (ownerId && ownerId !== reactorId) {
+      const reactor = $app.findRecordById("users", reactorId);
+      notify(
+        ownerId,
+        "reaction",
+        photo.get("cat"),
+        "Nueva reacción",
+        `${reactor ? reactor.get("name") || "Alguien" : "Alguien"} reaccionó ${e.record.get("emoji")} a tu captura.`,
+        `/cat?id=${photo.get("cat")}`
+      );
+    }
+  } catch (err) {
+    console.error("[catdex:notifications] reaction notify failed:", err);
+  }
+  e.next();
+}, "reactions");

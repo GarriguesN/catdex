@@ -138,6 +138,8 @@ SHARES_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
     {\"name\":\"cat\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$CATS_ID\"},
     {\"name\":\"sharedBy\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
     {\"name\":\"token\",\"type\":\"text\",\"required\":true},
+    {\"name\":\"dedicatedTo\",\"type\":\"relation\",\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"message\",\"type\":\"text\"},
     {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
   ],
   \"indexes\": [\"CREATE UNIQUE INDEX idx_shares_token ON shares (token)\"],
@@ -229,6 +231,26 @@ DUELS_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
   \"updateRule\": null,
   \"deleteRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\"
 }" | python3 -c "import sys,json; print('duels:', json.load(sys.stdin).get('id','ERR'))")
+
+# ── reactions ──
+REACT_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"reactions\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"photo\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$PHOTOS_ID\"},
+    {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"emoji\",\"type\":\"select\",\"required\":true,\"maxSelect\":1,\"values\":[\"🐾\",\"❤️\",\"😻\",\"😂\"]},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false},
+    {\"name\":\"updated\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":true}
+  ],
+  \"indexes\": [\"CREATE UNIQUE INDEX idx_reactions_photo_user ON reactions (photo, user)\"],
+  \"listRule\": \"@request.auth.id != ''\",
+  \"viewRule\": \"@request.auth.id != ''\",
+  \"createRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"updateRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
+}" | python3 -c "import sys,json; print('reactions:', json.load(sys.stdin).get('id','ERR'))")
 
 # ── users: inviteCode field + unique index, gamification fields ──
 echo "Patching users with inviteCode + gamification fields..."

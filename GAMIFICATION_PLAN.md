@@ -119,13 +119,12 @@ Lógica pura (`weekMondayKey`, `computeWeeklyDelta`, `computeDuelWinner`) en `li
 - Contador colectivo por grupo de amigos: suma de gatos descubiertos entre todos los miembros, con barra de progreso hacia el siguiente hito (100/250/500). Al alcanzarlo, **todos** desbloquean el mismo cosmético.
 - Modelo de datos: no necesita collection nueva si "grupo de amigos" se define como "tú + tus amigos directos" — se calcula sumando `cats`/`photos` de `listFriends()` + propio, sin persistir nada nuevo salvo el registro de qué hitos de grupo ya se celebraron (para no repetir el confetti).
 
-### C.3 Reacciones en capturas de amigos
-- Collection nueva `reactions` (`photo`, `user`, `emoji` — empezar solo con 🐾, ampliar según ideario punto 12). Botón de reacción en el detalle de foto/gato cuando `!isOwner`.
-- Notificación push (Fase A.3) cuando alguien reacciona a una foto tuya.
+### C.3 Reacciones en capturas de amigos — ✅ hecho
+Collection `reactions` (`photo`, `user`, `emoji`, 4 valores: 🐾❤️😻😂 — ampliado del punto de partida original tras el ideario punto 12) con índice único (photo, user) para upsert. Lógica de agregación pura en `lib/reactions.ts`, tests en `lib/reactions.test.ts` (13 casos: emoji desconocido/legacy, orden estable, upsert create-vs-update). Botón de reacción visible siempre (no solo `!isOwner`, el dueño también puede ver/dar reacciones). Notificación push real vía `pb_hooks/notifications.pb.js`.
 
-### C.4 Descubrimiento compartido y postales
-- Descubrimiento compartido (ideario punto 15): al guardar una foto, comprobar si otro usuario ya tiene un `phash` muy similar guardado y, si es amigo, marcar ambos registros como "también descubierto por [amigo]".
-- Postal/regalo (ideario punto 11): acción "Enviar como postal" desde el detalle de un gato, con mensaje corto, notificando al amigo destinatario.
+### C.4 Descubrimiento compartido y postales — ✅ hecho
+- Descubrimiento compartido: `lib/shared-discovery.ts` (tests en `lib/shared-discovery.test.ts`, 12 casos incluyendo el boundary exacto del umbral 90% en bits de diferencia del pHash) — comprueba en el momento de ver la ficha si un amigo tiene un gato con hash casi idéntico, sin cambio de schema (solo lectura, nada persistido).
+- Postal/regalo: reutiliza la collection `shares` (Fase C.5) añadiendo `dedicatedTo`/`message` opcionales — un "postcard" es un share dirigido a un único amigo en vez de un broadcast a todos. `getOrCreateShareUrl` excluye explícitamente las filas de postal (`dedicatedTo=""`) para que un postcard nunca se reutilice como el link público general — bug real encontrado y corregido en la propia revisión de esta fase.
 
 ### C.5 Sistema de compartir capturas — pedido explícito, dos canales — ✅ hecho (Fase A)
 Notificación push real (empujar el aviso cuando la app está cerrada) queda pendiente de A.3 — hoy la notificación es in-app únicamente (campana + feed), como decía el plan B de "Consideraciones técnicas".

@@ -21,16 +21,22 @@ import {
   Cloud,
   Check,
   Sparkles,
+  Mail,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import clsx from "clsx";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
-import { getOrCreateShareUrl } from "@/lib/shares";
+import { getOrCreateShareUrl, sendPostcard } from "@/lib/shares";
 import { rarityForDiscovererCount } from "@/lib/gamification-defs";
+import { getPhotoReactions, setMyReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/lib/reactions";
+import { findSharedDiscoverer } from "@/lib/shared-discovery";
+import { listFriends, type FriendEntry } from "@/lib/friends";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
 import { Card } from "@/components/ui/Card";
-import { ConfirmDialog } from "@/components/ui/Sheet";
+import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
+import { FriendAvatar } from "@/components/friends/FriendAvatar";
 
 const MiniMap = dynamic(() => import("@/components/MiniMap"), {
   ssr: false,
@@ -45,6 +51,7 @@ interface Cat {
   photoCount?: number;
   created?: string;
   discoveredBy?: string;
+  hash?: string;
 }
 
 interface Photo {
@@ -74,6 +81,15 @@ function CatDetailInner() {
   const [savedSize, setSavedSize] = useState<string | null>(null);
   const [place, setPlace] = useState<string | null>(null);
   const [weather, setWeather] = useState<{ temp: number; label: string } | null>(null);
+  const [reactionSummary, setReactionSummary] = useState<{ emoji: ReactionEmoji; count: number }[]>([]);
+  const [myReaction, setMyReactionState] = useState<ReactionEmoji | null>(null);
+  const [sharedDiscoverer, setSharedDiscoverer] = useState<FriendEntry["friend"] | null>(null);
+  const [friends, setFriends] = useState<FriendEntry[]>([]);
+  const [postcardOpen, setPostcardOpen] = useState(false);
+  const [postcardFriendId, setPostcardFriendId] = useState("");
+  const [postcardMessage, setPostcardMessage] = useState("");
+  const [postcardSending, setPostcardSending] = useState(false);
+  const [postcardSent, setPostcardSent] = useState(false);
   const pagerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,6 +154,75 @@ function CatDetailInner() {
         .catch(() => {});
     }
   }, [photos]);
+
+  // Reactions on the currently viewed photo (Fase C.3)
+  useEffect(() => {
+    const photoId = photos[photoIndex]?.id;
+    if (!photoId) return;
+    getPhotoReactions(photoId)
+      .then(({ summary, myEmoji }) => {
+        setReactionSummary(summary);
+        setMyReactionState(myEmoji);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) console.error("Failed to load reactions:", err);
+      });
+  }, [photos, photoIndex]);
+
+  // Descubrimiento compartido (Fase C.4) — best-effort, hidden on failure
+  useEffect(() => {
+    if (!cat?.hash) return;
+    const pb = getPocketBase();
+    const myId = pb.authStore.record?.id;
+    if (!myId) return;
+    findSharedDiscoverer(cat.hash, myId)
+      .then(setSharedDiscoverer)
+      .catch((err) => {
+        if (!isAbortError(err)) console.error("Shared-discovery check failed:", err);
+      });
+  }, [cat?.hash]);
+
+  // Friends list, for the postcard picker (Fase C.4)
+  useEffect(() => {
+    listFriends()
+      .then(setFriends)
+      .catch((err) => {
+        if (!isAbortError(err)) console.error("Failed to load friends for postcard:", err);
+      });
+  }, []);
+
+  async function handleReact(emoji: ReactionEmoji) {
+    const photoId = photos[photoIndex]?.id;
+    if (!photoId) return;
+    const previous = myReaction;
+    setMyReactionState(emoji); // optimistic
+    try {
+      await setMyReaction(photoId, emoji);
+      const { summary } = await getPhotoReactions(photoId);
+      setReactionSummary(summary);
+    } catch (err) {
+      setMyReactionState(previous);
+      console.error("Failed to react:", err);
+    }
+  }
+
+  async function handleSendPostcard() {
+    if (!cat || !postcardFriendId) return;
+    setPostcardSending(true);
+    try {
+      await sendPostcard(cat.id, postcardFriendId, postcardMessage);
+      setPostcardSent(true);
+      setTimeout(() => {
+        setPostcardOpen(false);
+        setPostcardSent(false);
+        setPostcardFriendId("");
+        setPostcardMessage("");
+      }, 1200);
+    } catch (err) {
+      console.error("Failed to send postcard:", err);
+    }
+    setPostcardSending(false);
+  }
 
   // Saved dimensions from the hero image
   function onHeroLoad(e: React.SyntheticEvent<HTMLImageElement>) {
@@ -421,6 +506,15 @@ function CatDetailInner() {
               </span>
             )}
 
+            {/* Descubrimiento compartido (Fase C.4) — a friend independently
+                photographed a near-identical cat */}
+            {sharedDiscoverer && (
+              <p className="flex items-center gap-1.5 mt-2 text-[0.75rem] text-catdex-text-muted">
+                <Users className="h-3.5 w-3.5 text-catdex-orange" />
+                También lo descubrió {sharedDiscoverer.name || "un amigo"}
+              </p>
+            )}
+
             {/* Date + location rows */}
             <div className="mt-2.5 space-y-1.5">
               {capturedAt && (
@@ -465,6 +559,40 @@ function CatDetailInner() {
             destructive
           />
         </div>
+
+        {/* Reactions on the currently viewed photo (Fase C.3) */}
+        <Card>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {REACTION_EMOJIS.map((emoji) => {
+              const count = reactionSummary.find((r) => r.emoji === emoji)?.count || 0;
+              const active = myReaction === emoji;
+              return (
+                <button
+                  key={emoji}
+                  onClick={() => handleReact(emoji)}
+                  className={clsx(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-transform active:scale-95",
+                    active ? "bg-catdex-orange text-white" : "bg-catdex-input-bg text-catdex-text-secondary"
+                  )}
+                >
+                  <span>{emoji}</span>
+                  {count > 0 && <span>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Postal — dedicate this cat to one friend (Fase C.4) */}
+        {isOwner && friends.length > 0 && (
+          <button
+            onClick={() => setPostcardOpen(true)}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full border-[1.5px] border-catdex-orange text-catdex-orange font-semibold text-[0.9375rem] py-3 active:bg-catdex-orange/10 transition-colors"
+          >
+            <Mail className="h-4.5 w-4.5" />
+            Enviar como postal a un amigo
+          </button>
+        )}
 
         {/* Notes */}
         {isOwner && (
@@ -569,6 +697,59 @@ function CatDetailInner() {
         onConfirm={deleteCat}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      {/* Postcard sheet */}
+      <Sheet open={postcardOpen} onClose={() => setPostcardOpen(false)}>
+        <div className="px-6 pt-2 pb-4">
+          {postcardSent ? (
+            <div className="flex flex-col items-center gap-2 py-8 animate-pop-in">
+              <Mail className="h-10 w-10 text-catdex-orange" />
+              <p className="font-semibold">¡Postal enviada!</p>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-base font-bold mb-1">Enviar como postal</h2>
+              <p className="text-[0.8125rem] text-catdex-text-muted mb-4">
+                Dedica &quot;{cat.name || "este gato"}&quot; a un amigo
+              </p>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 mb-4">
+                {friends.map((f) => (
+                  <button
+                    key={f.friendshipId}
+                    onClick={() => setPostcardFriendId(f.friend.id)}
+                    className="flex flex-col items-center gap-1.5 w-16 shrink-0"
+                  >
+                    <FriendAvatar
+                      user={f.friend}
+                      className={clsx(
+                        "w-14 h-14 text-lg transition-all",
+                        postcardFriendId === f.friend.id && "ring-2 ring-catdex-orange ring-offset-2"
+                      )}
+                    />
+                    <span className="text-[0.6875rem] font-medium truncate max-w-full">
+                      {f.friend.name || "Sin nombre"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="field min-h-[80px] resize-y"
+                placeholder="Mensaje (opcional)"
+                value={postcardMessage}
+                onChange={(e) => setPostcardMessage(e.target.value)}
+                maxLength={200}
+              />
+              <button
+                onClick={handleSendPostcard}
+                disabled={!postcardFriendId || postcardSending}
+                className="btn-primary w-full mt-4"
+              >
+                {postcardSending ? "Enviando…" : "Enviar postal"}
+              </button>
+            </>
+          )}
+        </div>
+      </Sheet>
     </div>
   );
 }
