@@ -37,6 +37,7 @@ export default function CapturePage() {
   const [notCatCopy, setNotCatCopy] = useState({ title: "", subtitle: "" });
   const [isSpecificAnimal, setIsSpecificAnimal] = useState(false);
   const [savedCatId, setSavedCatId] = useState<string | null>(null);
+  const [newAchievements, setNewAchievements] = useState<string[]>([]);
   const [suggestedIds, setSuggestedIds] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -267,6 +268,7 @@ export default function CapturePage() {
     if (!blob || !thumbBlob || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
+    const captureStartedAt = Date.now();
 
     try {
       const hash = pendingHashRef.current;
@@ -311,6 +313,24 @@ export default function CapturePage() {
       }
       await pb.collection("photos").create(form, { requestKey: null });
 
+      // Best-effort: refresh score/streak in the authStore and check whether
+      // this capture unlocked any new badge (the achievements hook runs
+      // server-side in the same request as the photo create above) — never
+      // block the "saved" screen on this, the photo is already safe.
+      try {
+        const userId = pb.authStore.record?.id;
+        const [unlocked] = await Promise.all([
+          pb.collection("achievements").getFullList({
+            filter: `user="${userId}" && unlockedAt > ${captureStartedAt}`,
+            fields: "badgeCode",
+          }),
+          pb.collection("users").authRefresh(),
+        ]);
+        setNewAchievements(unlocked.map((a: any) => a.badgeCode));
+      } catch (err) {
+        if (!isAbortError(err)) console.error("Post-save achievement check failed:", err);
+      }
+
       stopCamera();
       setSavedCatId(catId);
       setScreen("saved");
@@ -330,13 +350,21 @@ export default function CapturePage() {
     pendingBlobRef.current = null;
     pendingThumbBlobRef.current = null;
     pendingHashRef.current = "";
+    setNewAchievements([]);
     if (!streamRef.current && isCameraAvailable()) startCamera(facing);
   }
 
   // ── Render ──
 
   if (screen === "saved" && savedCatId) {
-    return <SavedScreen catId={savedCatId} photoUrl={previewUrl!} onContinue={resetCapture} />;
+    return (
+      <SavedScreen
+        catId={savedCatId}
+        photoUrl={previewUrl!}
+        newAchievements={newAchievements}
+        onContinue={resetCapture}
+      />
+    );
   }
 
   return (

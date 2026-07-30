@@ -1,7 +1,17 @@
 /**
- * PocketBase hook — scoring + photoCount server-side.
+ * PocketBase hook — scoring + photoCount + streak server-side.
  * Deploy: copy to /opt/pocketbase/pb_hooks/ on CT 120
  */
+
+// "Day" boundary for streaks is UTC midnight (server-local, same
+// approximation already accepted for night_owl/early_bird in
+// achievements-utils.js) — not per-user timezone.
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function yesterdayStr() {
+  return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+}
 
 // ═══ onRecordAfterCreateSuccess for photos ═══
 onRecordAfterCreateSuccess((e) => {
@@ -30,6 +40,17 @@ onRecordAfterCreateSuccess((e) => {
         const user = txApp.findRecordById("users", photoUser);
         if (user) {
           user.set("score", (user.get("score") || 0) + points);
+
+          // Streak: same day as last capture = unchanged, next day = +1,
+          // any gap = reset to 1.
+          const today = todayStr();
+          const lastDate = user.get("lastCaptureDate") || "";
+          if (lastDate !== today) {
+            const streak = lastDate === yesterdayStr() ? (user.get("currentStreak") || 0) + 1 : 1;
+            user.set("currentStreak", streak);
+            user.set("lastCaptureDate", today);
+          }
+
           txApp.save(user);
         }
       });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Flame, Search, SlidersHorizontal, X } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getFavorites, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
@@ -132,6 +132,20 @@ export default function CollectionPage() {
           </IconButton>
         </div>
       </header>
+
+      {(user?.currentStreak || 0) > 0 && (
+        <div className="flex items-center gap-2.5 bg-catdex-orange/10 rounded-2xl px-4 py-3 mb-4">
+          <Flame className="h-5 w-5 text-catdex-orange shrink-0" />
+          <p className="text-[0.8125rem] font-medium text-catdex-text">
+            <span className="font-bold">
+              Racha de {user!.currentStreak} día{user!.currentStreak !== 1 ? "s" : ""}
+            </span>{" "}
+            {user!.lastCaptureDate === new Date().toISOString().slice(0, 10)
+              ? "— ¡ya has capturado hoy!"
+              : "— captura hoy para no perderla"}
+          </p>
+        </div>
+      )}
 
       {searchOpen && (
         <div className="mb-3 animate-fade-up">

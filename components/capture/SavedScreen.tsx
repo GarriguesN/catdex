@@ -3,16 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { playCaptureSound } from "@/lib/sounds";
+import { AchievementCircle } from "@/components/AchievementBadge";
+import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
 
 interface SavedScreenProps {
   catId: string;
   photoUrl: string;
+  newAchievements?: string[];
   onContinue?: () => void;
 }
 
 const CONFETTI_COLORS = ["#FF8A26", "#FFA54A", "#3DBE7B", "#222326"];
 
-export function SavedScreen({ catId, photoUrl, onContinue }: SavedScreenProps) {
+export function SavedScreen({ catId, photoUrl, newAchievements, onContinue }: SavedScreenProps) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showFlash, setShowFlash] = useState(true);
@@ -88,9 +91,27 @@ export function SavedScreen({ catId, photoUrl, onContinue }: SavedScreenProps) {
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-catdex-text mb-8">¡Gato guardado!</h2>
+        <h2 className="text-2xl font-bold text-catdex-text mb-2">¡Gato guardado!</h2>
 
-        <button onClick={() => router.push(`/cat?id=${catId}`)} className="btn-primary w-full max-w-xs">
+        {newAchievements && newAchievements.length > 0 && (
+          <div className="flex flex-col items-center gap-2 mb-6 animate-fade-up">
+            <p className="text-[0.8125rem] font-semibold text-catdex-orange">
+              {newAchievements.length === 1 ? "¡Nuevo logro desbloqueado!" : "¡Nuevos logros desbloqueados!"}
+            </p>
+            <div className="flex gap-3">
+              {newAchievements.map((badgeCode) => (
+                <div key={badgeCode} className="flex flex-col items-center gap-1 w-16">
+                  <AchievementCircle badgeCode={badgeCode} className="w-14 h-14" />
+                  <p className="text-[0.625rem] font-medium text-center leading-tight">
+                    {ACHIEVEMENT_DEFS[badgeCode]?.name || badgeCode}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button onClick={() => router.push(`/cat?id=${catId}`)} className="btn-primary w-full max-w-xs mt-6">
           Ver ficha
         </button>
         <button

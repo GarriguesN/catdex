@@ -126,14 +126,21 @@ FRIEND_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
   \"deleteRule\": \"@request.auth.id != '' && (requester = @request.auth.id || addressee = @request.auth.id)\"
 }" | python3 -c "import sys,json; print('friendships:', json.load(sys.stdin).get('id','ERR'))")
 
-# ── users: inviteCode field + unique index ──
-echo "Patching users with inviteCode..."
+# ── users: inviteCode field + unique index, gamification fields ──
+echo "Patching users with inviteCode + gamification fields..."
 curl -s "$BASE/api/collections/$USERS_ID" -H "$H" | python3 -c "
 import sys, json
 c = json.load(sys.stdin)
 patch = {}
-if not any(f['name'] == 'inviteCode' for f in c['fields']):
-    patch['fields'] = c['fields'] + [{'name': 'inviteCode', 'type': 'text'}]
+fields = c['fields']
+if not any(f['name'] == 'inviteCode' for f in fields):
+    fields = fields + [{'name': 'inviteCode', 'type': 'text'}]
+if not any(f['name'] == 'currentStreak' for f in fields):
+    fields = fields + [{'name': 'currentStreak', 'type': 'number', 'min': 0}]
+if not any(f['name'] == 'lastCaptureDate' for f in fields):
+    fields = fields + [{'name': 'lastCaptureDate', 'type': 'text'}]
+if fields != c['fields']:
+    patch['fields'] = fields
 idx = \"CREATE UNIQUE INDEX idx_users_inviteCode ON users (inviteCode) WHERE inviteCode != ''\"
 if not any('idx_users_inviteCode' in i for i in c.get('indexes', [])):
     patch['indexes'] = c.get('indexes', []) + [idx]
@@ -141,7 +148,7 @@ print(json.dumps(patch))
 " > /tmp/users_patch.json
 if [ "$(cat /tmp/users_patch.json)" != "{}" ]; then
   curl -s -X PATCH "$BASE/api/collections/$USERS_ID" -H "$H" -H "$CT" -d @/tmp/users_patch.json > /dev/null
-  echo "users: inviteCode added"
+  echo "users: inviteCode + gamification fields added"
 fi
 rm -f /tmp/users_patch.json
 

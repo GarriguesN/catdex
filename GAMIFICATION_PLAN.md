@@ -9,7 +9,7 @@ Escrito para que un agente lo ejecute fase a fase. Antes de tocar código, revis
 ## Lo que ya existe (no reinventar)
 
 - **Puntos**: `pb_hooks/scoring.pb.js` — 50pts primera foto de un gato, 10pts las siguientes. Server-side, ya blindado.
-- **Logros**: 18 definidos en `lib/achievements-defs.ts`, con rareza (Común/Raro/Épico/Legendario) e icono. Solo **11 se evalúan** server-side (`pb_hooks/achievements-utils.js`); 7 están definidos pero nunca se calculan: `lucky_day`, `loyal_5`, `loyal_50`, `rainy_day`, `streak_7`, `streak_30`, `share_first`.
+- **Logros**: 18 definidos en `lib/achievements-defs.ts`, con rareza (Común/Raro/Épico/Legendario) e icono. **13 se evalúan** server-side (`pb_hooks/achievements-utils.js`) — `streak_7`/`streak_30` se añadieron en la Fase A junto al streak; quedan 5 sin calcular: `lucky_day`, `loyal_5`, `loyal_50`, `rainy_day`, `share_first`.
 - **Racha (streak)**: el dato ya se calcula — pero solo client-side y solo dentro de `/profile/stats` (`currentStreak`/`bestStreak` en base a fechas de `photos`). No hay presión de "no la rompas" en ningún sitio visible del día a día.
 - **Ranking**: `/profile/stats` lista todos los usuarios por `score` — global, no por grupo de amigos, no tiene corte temporal (siempre acumulado histórico).
 - **Amigos**: sistema completo (solicitudes, mapa compartido con color distinto). Sin ninguna interacción social más allá de "ver dónde ha estado".
@@ -83,8 +83,8 @@ Más allá de las 4 fases originales. Todo lo de aquí abajo es **candidato a in
   - Esto rompe, de forma puntual y justificada, la característica de "sin `app/api/*`" que describían `IMPROVEMENT_PLAN.md`/`FRIENDS_PLAN.md` — es la única pieza de todo el plan que necesita ejecutarse en un runtime con crypto real. Alternativa (a) evita tocar Next.js pero obliga a compilar y desplegar un binario de PocketBase a medida en vez de solo copiar `pb_hooks/*.pb.js` — más trabajo operativo para lo que gana.
 - PocketBase no tiene un enviador de push nativo — necesita un hook con `cronAdd` (cron nativo de PocketBase, hoy sin usar en `pb_hooks/`) que, cada día a una hora fija, recorra usuarios con racha activa que no han capturado hoy y llame a la ruta de envío para mandarles "🔥 Tu racha de N días se rompe hoy".
 
-### A.4 Completar los 7 logros pendientes
-- `streak_7` / `streak_30`: triviales una vez existe A.1 (comparar `currentStreak` contra el umbral en el mismo hook).
+### A.4 Completar los logros pendientes
+- ✅ `streak_7` / `streak_30`: hecho — `achievements-utils.js` ya lee `users.currentStreak` y compara contra el umbral.
 - `loyal_5` / `loyal_50`: "revisitas el mismo gato N veces" — contar fotos por `cat` agrupadas, ya se tienen los datos en `achievements-utils.js` (`photos` del usuario), falta agrupar por `cat` y comparar el máximo.
 - `rainy_day`: ya se consulta el clima en `app/cat/page.tsx` (Open-Meteo) pero solo para mostrarlo, no se persiste. Igual que con `city` (Fase 0.4 de `FRIENDS_PLAN.md`), habría que resolverlo en el momento de la captura y guardar un flag `rainy: boolean` en `photos` para que el hook lo pueda evaluar server-side.
 - `lucky_day`: sin definición de negocio clara todavía — placeholder en el diseño original. Propuesta: se dispara con una probabilidad baja (p. ej. 5%) en cada captura, servidor-side en el mismo hook (nunca en cliente, para que no se pueda forzar).

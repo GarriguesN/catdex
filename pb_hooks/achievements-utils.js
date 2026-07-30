@@ -3,7 +3,7 @@
  * (not auto-loaded: only *.pb.js files are executed by PocketBase).
  *
  * Ports the client-side conditions that previously lived in
- * app/settings/achievements/page.tsx. Only the 10 badges whose data exists
+ * app/settings/achievements/page.tsx. Only the badges whose data exists
  * today; the rest stay locked until their tracking is built.
  */
 
@@ -41,6 +41,13 @@ module.exports = {
       });
       if (areas.size >= 3) earned.push("explorer_3");
       if (areas.size >= 10) earned.push("explorer_10");
+
+      // Streak fields live on `users` (maintained by scoring.pb.js, which
+      // runs before this hook on the same "photos" create event).
+      const user = txApp.findRecordById("users", userId);
+      const currentStreak = (user && user.get("currentStreak")) || 0;
+      if (currentStreak >= 7) earned.push("streak_7");
+      if (currentStreak >= 30) earned.push("streak_30");
 
       const existing = new Set(
         txApp
