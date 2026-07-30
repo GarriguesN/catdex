@@ -114,7 +114,8 @@ Lógica pura (`weekMondayKey`, `computeWeeklyDelta`, `computeDuelWinner`) en `li
 - Duelos 1 a 1: un amigo reta a otro a "quién captura más en 7 días" — collection `duels` (`challenger`, `opponent`, `startsAt`, `endsAt`, `challengerScore`, `opponentScore`), cerrada por el mismo cron semanal o uno propio. Notificación de inicio y de resultado.
 - El mapa **no** participa de esto — sigue mostrando solo dónde ha estado cada uno, nunca "territorio" de nadie.
 
-### C.2 Colonia compartida (objetivo de grupo)
+### C.2 Colonia compartida (objetivo de grupo) — ✅ hecho
+`lib/colony.ts` (tests en `lib/colony.test.ts`, 15 casos: boundaries exactos en cada hito, hito superado, total negativo/NaN, persistencia corrupta). Barra de progreso + confetti en `/friends` la primera vez que se cruza un hito.
 - Contador colectivo por grupo de amigos: suma de gatos descubiertos entre todos los miembros, con barra de progreso hacia el siguiente hito (100/250/500). Al alcanzarlo, **todos** desbloquean el mismo cosmético.
 - Modelo de datos: no necesita collection nueva si "grupo de amigos" se define como "tú + tus amigos directos" — se calcula sumando `cats`/`photos` de `listFriends()` + propio, sin persistir nada nuevo salvo el registro de qué hitos de grupo ya se celebraron (para no repetir el confetti).
 

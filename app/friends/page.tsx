@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Check, UserPlus, Trash2, X, RefreshCw, Swords } from "lucide-react";
+import { Copy, Check, UserPlus, Trash2, X, RefreshCw, Swords, Users } from "lucide-react";
+import confetti from "canvas-confetti";
 import clsx from "clsx";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
@@ -22,6 +23,13 @@ import {
 } from "@/lib/friends";
 import { getWeeklyRanking, type WeeklyRankEntry } from "@/lib/ranking";
 import { listMyDuels, createDuel, cancelDuel, type DuelEntry } from "@/lib/duels";
+import {
+  getColonyTotal,
+  nextColonyMilestone,
+  highestMilestoneReached,
+  getLastCelebratedMilestone,
+  setLastCelebratedMilestone,
+} from "@/lib/colony";
 import { TopBar } from "@/components/ui/TopBar";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Sheet, ConfirmDialog } from "@/components/ui/Sheet";
@@ -48,6 +56,7 @@ export default function FriendsPage() {
   const [toRemove, setToRemove] = useState<FriendEntry | null>(null);
   const [weeklyRanking, setWeeklyRanking] = useState<WeeklyRankEntry[]>([]);
   const [duels, setDuels] = useState<DuelEntry[]>([]);
+  const [colonyTotal, setColonyTotal] = useState<number | null>(null);
   const [challenging, setChallenging] = useState<string | null>(null);
   const [challengeError, setChallengeError] = useState("");
 
@@ -76,6 +85,18 @@ export default function FriendsPage() {
       setDuels(await listMyDuels());
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load duels:", err);
+    }
+    try {
+      const total = await getColonyTotal();
+      setColonyTotal(total);
+      // Celebrate once per milestone, first time it's seen — not every load.
+      const highest = highestMilestoneReached(total);
+      if (highest !== null && highest > getLastCelebratedMilestone()) {
+        setLastCelebratedMilestone(highest);
+        confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 } });
+      }
+    } catch (err) {
+      if (!isAbortError(err)) console.error("Failed to load colony total:", err);
     }
     setLoading(false);
     setRefreshing(false);
@@ -262,6 +283,37 @@ export default function FriendsPage() {
               </div>
             ))}
           </div>
+        </Card>
+      )}
+
+      {/* Colonia compartida — cooperative group goal, no ranking involved */}
+      {!loading && colonyTotal !== null && (
+        <Card>
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="h-4 w-4 text-catdex-orange" />
+            <CardTitle>Colonia compartida</CardTitle>
+          </div>
+          <p className="text-[0.8125rem] text-catdex-text-muted mb-3">
+            Entre todos habéis descubierto <span className="font-bold text-catdex-text">{colonyTotal}</span> gatos
+          </p>
+          {(() => {
+            const next = nextColonyMilestone(colonyTotal);
+            const prevMilestone = highestMilestoneReached(colonyTotal) || 0;
+            const progress = next ? Math.min(100, ((colonyTotal - prevMilestone) / (next - prevMilestone)) * 100) : 100;
+            return (
+              <>
+                <div className="h-2.5 rounded-full bg-catdex-input-bg overflow-hidden">
+                  <div
+                    className="h-full bg-catdex-orange rounded-full transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <p className="text-[0.75rem] text-catdex-text-muted mt-1.5">
+                  {next ? `${colonyTotal} / ${next} hacia el próximo hito` : "¡Habéis alcanzado el hito máximo!"}
+                </p>
+              </>
+            );
+          })()}
         </Card>
       )}
 
