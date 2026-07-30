@@ -52,6 +52,7 @@ interface Cat {
   created?: string;
   discoveredBy?: string;
   hash?: string;
+  expand?: { discoveredBy?: { id: string; name?: string; avatar?: string } };
 }
 
 interface Photo {
@@ -103,7 +104,7 @@ function CatDetailInner() {
   async function loadCat(catId: string) {
     try {
       const pb = getPocketBase();
-      const data = (await pb.collection("cats").getOne(catId)) as any;
+      const data = (await pb.collection("cats").getOne(catId, { expand: "discoveredBy" })) as any;
       setCat(data);
       setNameInput(data.name || "");
       setNotesInput(data.notes || "");
@@ -506,13 +507,27 @@ function CatDetailInner() {
               </span>
             )}
 
+            {/* Who caught this cat — only relevant when it's not your own */}
+            {!isOwner && cat.expand?.discoveredBy && (
+              <Link
+                href={`/profile/${cat.expand.discoveredBy.id}`}
+                className="flex items-center gap-1.5 mt-2 text-[0.75rem] text-catdex-text-muted"
+              >
+                <Users className="h-3.5 w-3.5 text-catdex-orange" />
+                Cazado por <span className="font-semibold text-catdex-text">{cat.expand.discoveredBy.name || "Sin nombre"}</span>
+              </Link>
+            )}
+
             {/* Descubrimiento compartido (Fase C.4) — a friend independently
                 photographed a near-identical cat */}
             {sharedDiscoverer && (
-              <p className="flex items-center gap-1.5 mt-2 text-[0.75rem] text-catdex-text-muted">
+              <Link
+                href={`/profile/${sharedDiscoverer.id}`}
+                className="flex items-center gap-1.5 mt-2 text-[0.75rem] text-catdex-text-muted"
+              >
                 <Users className="h-3.5 w-3.5 text-catdex-orange" />
                 También lo descubrió {sharedDiscoverer.name || "un amigo"}
-              </p>
+              </Link>
             )}
 
             {/* Date + location rows */}

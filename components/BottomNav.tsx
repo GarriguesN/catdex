@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import type React from "react";
 import clsx from "clsx";
-import { Cat, MapPin, User, Settings } from "lucide-react";
+import { Cat, MapPin, User, Trophy } from "lucide-react";
 
 type NavItemDef = {
   href: string;
@@ -18,9 +18,12 @@ const LEFT_ITEMS: NavItemDef[] = [
   { href: "/map", label: "Mapa", icon: MapPin },
 ];
 
+// Ajustes is no longer its own tab — reachable from a button inside /profile
+// instead. Perfil moved into that freed-up slot; the new Competición view
+// (rankings + duels, previously buried in /friends) took Perfil's old spot.
 const RIGHT_ITEMS: NavItemDef[] = [
+  { href: "/competition", label: "Competición", icon: Trophy },
   { href: "/profile", label: "Perfil", icon: User },
-  { href: "/settings", label: "Ajustes", icon: Settings },
 ];
 
 /** Routes with their own full-screen chrome — no bottom nav. */
