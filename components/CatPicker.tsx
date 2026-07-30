@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { SearchBar } from "@/components/ui/SearchBar";
 
 interface Cat {
@@ -58,7 +58,7 @@ export function CatPicker({ suggestedIds, onSelect, onCancel }: CatPickerProps) 
         (result.items as unknown as Cat[]).map((c) => ({ ...c, thumbUrl: thumbByCat.get(c.id) || null }))
       );
     } catch (err) {
-      console.error("Failed to load cats for picker:", err);
+      if (!isAbortError(err)) console.error("Failed to load cats for picker:", err);
     }
     setLoading(false);
   }

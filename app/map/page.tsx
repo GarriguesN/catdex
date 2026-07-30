@@ -5,7 +5,7 @@ import { MapPin, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { listFriends } from "@/lib/friends";
 import { isShowFriendsEnabled, setShowFriendsEnabled } from "@/lib/map-prefs";
 import { IconButton } from "@/components/ui/IconButton";
@@ -94,7 +94,7 @@ function MapPageInner() {
       enriched.sort((a, b) => b.takenAt - a.takenAt);
       setMarkers(enriched);
     } catch (err) {
-      console.error("Failed to load markers:", err);
+      if (!isAbortError(err)) console.error("Failed to load markers:", err);
     }
     setLoading(false);
   }
@@ -137,7 +137,7 @@ function MapPageInner() {
           </div>
           <p className="text-lg font-bold text-catdex-text">Sin ubicaciones aún</p>
           <p className="text-sm text-catdex-text-muted mt-1.5 max-w-xs">
-            Las capturas con GPS aparecerán aquí en el mapa
+            No puedes ver el mapa ni los gatos de tus amigos hasta que captures tu primer gato
           </p>
         </div>
       ) : (

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
 import { TopBar } from "@/components/ui/TopBar";
 import { AchievementCircle } from "@/components/AchievementBadge";
@@ -32,7 +32,7 @@ export default function AchievementsPage() {
         .getFullList({ filter: `user="${userId}"`, fields: "badgeCode,unlockedAt" });
       setUnlockedAt(new Map(rows.map((r: any) => [r.badgeCode, r.unlockedAt])));
     } catch (err) {
-      console.error("Failed to load achievements:", err);
+      if (!isAbortError(err)) console.error("Failed to load achievements:", err);
     }
     setLoading(false);
   }

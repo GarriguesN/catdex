@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getFavorites, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
 import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
@@ -83,7 +83,7 @@ export default function CollectionPage() {
         }))
       );
     } catch (err) {
-      console.error("Failed to load cats:", err);
+      if (!isAbortError(err)) console.error("Failed to load cats:", err);
     }
     setLoading(false);
   }

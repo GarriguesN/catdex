@@ -11,7 +11,7 @@ import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
 import { reverseGeocode } from "@/lib/geo";
 import { classifyPhoto, preloadClassifier } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { playShutterSound } from "@/lib/sounds";
 import { CatPicker } from "@/components/CatPicker";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
@@ -150,7 +150,7 @@ export default function CapturePage() {
     }
   }, []);
 
-  // ── Pipeline: normalize → blur check → MobileNet → pHash + picker ──
+  // ── Pipeline: normalize → blur check → coco-ssd detection → pHash + picker ──
 
   async function processCapture(file: Blob) {
     const captureId = Math.random().toString(36).slice(2, 8);
@@ -186,7 +186,7 @@ export default function CapturePage() {
       return;
     }
 
-    // 3. MobileNet gate
+    // 3. coco-ssd cat-detection gate
     setScreen("detecting");
     const result = await classifyPhoto(img);
     console.log(`[capture:${captureId}] classifier result:`, result);
@@ -241,7 +241,7 @@ export default function CapturePage() {
 
       setSuggestedIds(scored.map((s: any) => s.id));
     } catch (err) {
-      console.error("pHash/lookup failed:", err);
+      if (!isAbortError(err)) console.error("pHash/lookup failed:", err);
       setSuggestedIds([]);
     }
     setShowPicker(true);

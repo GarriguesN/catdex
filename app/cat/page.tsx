@@ -24,7 +24,7 @@ import {
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import clsx from "clsx";
-import { getPocketBase } from "@/lib/pocketbase";
+import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -93,7 +93,7 @@ function CatDetailInner() {
       });
       setPhotos(photosResult as unknown as Photo[]);
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) console.error(err);
     }
     setLoading(false);
   }
@@ -182,10 +182,17 @@ function CatDetailInner() {
     router.push("/");
   }
 
-  function photoUrl(p?: Photo, thumb = false): string | null {
+  function photoUrl(p?: Photo, thumbSize?: string): string | null {
     if (!p?.photo) return null;
     const pb = getPocketBase();
-    return `${pb.baseUrl}/api/files/photos/${p.id}/${p.photo}${thumb ? "?thumb=600x600" : ""}`;
+    return `${pb.baseUrl}/api/files/photos/${p.id}/${p.photo}${thumbSize ? `?thumb=${thumbSize}` : ""}`;
+  }
+
+  function scrollToPhoto(i: number) {
+    const el = pagerRef.current;
+    if (!el) return;
+    setPhotoIndex(i);
+    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }
 
   if (loading) {
@@ -230,14 +237,23 @@ function CatDetailInner() {
     { label: "Noche", icon: Moon };
   const DaypartIcon = daypart.icon;
 
+  const HERO_H = "52dvh";
+  const HERO_OVERLAP = "1.5rem";
+
   return (
-    <div className="-mx-4 pb-4">
-      {/* ── Hero: photo pager with overlay controls ── */}
-      <div className="relative">
+    <div className="pb-4">
+      {/*
+        Hero is pinned to the viewport (not the document) so it stays put while
+        the content card — a normal in-flow element — scrolls up over it,
+        progressively covering the photo as the page scrolls (App Store /
+        Apple Music "big header" effect). No scroll-linked JS needed: the
+        card just physically slides over a fixed element underneath it.
+      */}
+      <div className="fixed inset-x-0 top-0 z-0 bg-catdex-input-bg" style={{ height: HERO_H }}>
         <div
           ref={pagerRef}
           onScroll={onPagerScroll}
-          className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar h-[52dvh] bg-catdex-input-bg"
+          className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar w-full h-full"
         >
           {photos.length > 0 ? (
             photos.map((p, i) => {
@@ -261,48 +277,92 @@ function CatDetailInner() {
           )}
         </div>
 
-        {/* Overlay top bar */}
-        <div
-          className="absolute inset-x-0 top-0 flex items-center justify-between px-4"
-          style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
-        >
-          <button
-            onClick={() => router.back()}
-            aria-label="Volver"
-            className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm text-white flex items-center justify-center"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={share}
-              aria-label="Compartir"
-              className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm text-white flex items-center justify-center"
-            >
-              <Share className="h-5 w-5" />
-            </button>
-            {isOwner && (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                aria-label="Más opciones"
-                className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm text-white flex items-center justify-center"
-              >
-                <MoreHorizontal className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Pager badge */}
+        {/* Dot + numeric page indicators — parked above the card's resting overlap so they're never clipped */}
         {photos.length > 1 && (
-          <span className="absolute bottom-4 right-4 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm text-white text-xs font-semibold">
-            {photoIndex + 1}/{photos.length}
-          </span>
+          <div className="absolute inset-x-0 bottom-9 flex flex-col items-center gap-2">
+            {photos.length <= 10 && (
+              <div className="flex items-center gap-1.5">
+                {photos.map((p, i) => (
+                  <span
+                    key={p.id}
+                    className={clsx(
+                      "h-1.5 rounded-full bg-white shadow-soft transition-all",
+                      i === photoIndex ? "w-4 opacity-100" : "w-1.5 opacity-50"
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+            <span className="px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm text-white text-xs font-semibold">
+              {photoIndex + 1}/{photos.length}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* ── Content card ── */}
-      <div className="relative -mt-6 bg-catdex-cream rounded-t-3xl px-4 pt-6 space-y-4">
+      {/* Overlay top bar — its own fixed layer above both hero and card, always reachable */}
+      <div
+        className="fixed inset-x-0 top-0 z-20 flex items-center justify-between px-4"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+      >
+        <button
+          onClick={() => router.back()}
+          aria-label="Volver"
+          className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm text-white flex items-center justify-center"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={share}
+            aria-label="Compartir"
+            className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm text-white flex items-center justify-center"
+          >
+            <Share className="h-5 w-5" />
+          </button>
+          {isOwner && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              aria-label="Más opciones"
+              className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm text-white flex items-center justify-center"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Content card — slides up over the fixed hero as the page scrolls ── */}
+      <div
+        className="relative z-10 -mx-3 sm:-mx-4 bg-catdex-cream rounded-t-3xl px-4 pt-6 space-y-4"
+        style={{ marginTop: `calc(${HERO_H} - ${HERO_OVERLAP})` }}
+      >
+        {photos.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 -mt-1">
+            {photos.map((p, i) => {
+              const thumb = photoUrl(p, "120x120") || photoUrl(p);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => scrollToPhoto(i)}
+                  aria-label={`Ver foto ${i + 1}`}
+                  className={clsx(
+                    "relative shrink-0 w-14 h-14 rounded-xl overflow-hidden transition-all active:scale-95",
+                    i === photoIndex
+                      ? "ring-2 ring-catdex-orange ring-offset-2 ring-offset-catdex-cream"
+                      : "opacity-70"
+                  )}
+                >
+                  {thumb && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Name + favorite */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -426,8 +486,6 @@ function CatDetailInner() {
         <Card>
           <h3 className="text-[0.9375rem] font-semibold mb-3">Detalles técnicos</h3>
           <div className="space-y-2.5">
-            <DetailRow label="¿Es un gato?" value="Sí" valueClass="text-catdex-green font-semibold" />
-            <DetailRow label="Modelo IA" value="MobileNetV3" />
             {savedSize && <DetailRow label="Tamaño guardado" value={savedSize} />}
             <DetailRow label="Fotos" value={`${photos.length}`} />
             {mainPhoto?.photo && <DetailRow label="Archivo" value={mainPhoto.photo} mono />}
