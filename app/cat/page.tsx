@@ -25,6 +25,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import clsx from "clsx";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
+import { getOrCreateShareUrl } from "@/lib/shares";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -165,11 +166,16 @@ function CatDetailInner() {
 
   async function share() {
     if (!cat) return;
-    const url = photoUrl(mainPhoto);
     try {
-      await navigator.share?.({ title: cat.name, text: `Mira este gato de mi CatDex: ${cat.name}`, url: url || window.location.href });
-    } catch {
-      /* cancelled */
+      // Only the discoverer can generate a public link (pb_hooks/shares.pb.js
+      // enforces this too) — anyone else falls back to sharing the app URL.
+      const url =
+        cat.discoveredBy === getPocketBase().authStore.record?.id
+          ? await getOrCreateShareUrl(cat.id)
+          : window.location.href;
+      await navigator.share?.({ title: cat.name, text: `Mira este gato de mi CatDex: ${cat.name}`, url });
+    } catch (err) {
+      if ((err as { name?: string })?.name !== "AbortError") console.error("Share failed:", err);
     }
   }
 

@@ -123,7 +123,9 @@ Más allá de las 4 fases originales. Todo lo de aquí abajo es **candidato a in
 - Descubrimiento compartido (ideario punto 15): al guardar una foto, comprobar si otro usuario ya tiene un `phash` muy similar guardado y, si es amigo, marcar ambos registros como "también descubierto por [amigo]".
 - Postal/regalo (ideario punto 11): acción "Enviar como postal" desde el detalle de un gato, con mensaje corto, notificando al amigo destinatario.
 
-### C.5 Sistema de compartir capturas — pedido explícito, dos canales
+### C.5 Sistema de compartir capturas — pedido explícito, dos canales — ✅ hecho (Fase A)
+Notificación push real (empujar el aviso cuando la app está cerrada) queda pendiente de A.3 — hoy la notificación es in-app únicamente (campana + feed), como decía el plan B de "Consideraciones técnicas".
+
 Esta es la pieza más concreta de todo el plan (especificación cerrada, no solo idea):
 
 **Modelo de datos**: nueva collection `shares` (`id`, `cat` → relation a `cats`, `sharedBy` → relation a `users`, `token` — text único generado al crear, `created`). `createRule`: `@request.auth.id != "" && sharedBy = @request.auth.id && cat.discoveredBy = @request.auth.id` (solo el descubridor puede compartir su propio gato, mismo criterio de ownership que edición/borrado en `app/cat/page.tsx`). `listRule`/`viewRule`: igual que `friendships`, restringido — el acceso público real no pasa por aquí (ver más abajo).

@@ -126,6 +126,49 @@ FRIEND_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
   \"deleteRule\": \"@request.auth.id != '' && (requester = @request.auth.id || addressee = @request.auth.id)\"
 }" | python3 -c "import sys,json; print('friendships:', json.load(sys.stdin).get('id','ERR'))")
 
+# ── shares ──
+# createRule only checks sharedBy — ownership of the cat itself is enforced
+# in pb_hooks/shares.pb.js (avoids relying on relation back-reference syntax
+# in the filter, which is version-sensitive; see FRIENDS_PLAN.md 3.5).
+SHARES_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"shares\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"cat\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$CATS_ID\"},
+    {\"name\":\"sharedBy\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"token\",\"type\":\"text\",\"required\":true},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+  ],
+  \"indexes\": [\"CREATE UNIQUE INDEX idx_shares_token ON shares (token)\"],
+  \"listRule\": \"@request.auth.id != '' && sharedBy = @request.auth.id\",
+  \"viewRule\": \"@request.auth.id != '' && sharedBy = @request.auth.id\",
+  \"createRule\": \"@request.auth.id != '' && sharedBy = @request.auth.id\",
+  \"updateRule\": null,
+  \"deleteRule\": \"@request.auth.id != '' && sharedBy = @request.auth.id\"
+}" | python3 -c "import sys,json; print('shares:', json.load(sys.stdin).get('id','ERR'))")
+
+# ── notifications ──
+# createRule is null: only server hooks (pb_hooks/notifications.pb.js) write
+# these, same lockdown pattern as achievements.
+NOTIF_ID=$(curl -s -X POST "$BASE/api/collections" -H "$H" -H "$CT" -d "{
+  \"name\": \"notifications\",
+  \"type\": \"base\",
+  \"fields\": [
+    {\"autogeneratePattern\":\"[a-z0-9]{24}\",\"name\":\"id\",\"required\":true,\"type\":\"text\",\"primaryKey\":true},
+    {\"name\":\"user\",\"type\":\"relation\",\"required\":true,\"collectionId\":\"$USERS_ID\"},
+    {\"name\":\"type\",\"type\":\"select\",\"required\":true,\"maxSelect\":1,\"values\":[\"friend_request\",\"share\",\"reaction\"]},
+    {\"name\":\"refId\",\"type\":\"text\"},
+    {\"name\":\"read\",\"type\":\"bool\"},
+    {\"name\":\"created\",\"type\":\"autodate\",\"onCreate\":true,\"onUpdate\":false}
+  ],
+  \"listRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"viewRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"createRule\": null,
+  \"updateRule\": \"@request.auth.id != '' && user = @request.auth.id\",
+  \"deleteRule\": \"@request.auth.id != '' && user = @request.auth.id\"
+}" | python3 -c "import sys,json; print('notifications:', json.load(sys.stdin).get('id','ERR'))")
+
 # ── users: inviteCode field + unique index, gamification fields ──
 echo "Patching users with inviteCode + gamification fields..."
 curl -s "$BASE/api/collections/$USERS_ID" -H "$H" | python3 -c "

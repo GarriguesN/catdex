@@ -22,6 +22,7 @@ import { getFavorites } from "@/lib/favorites";
 import { formatTimeAgo } from "@/lib/utils";
 import { ACHIEVEMENT_DEFS } from "@/lib/achievements-defs";
 import { listFriends, listPendingIncoming, countFriendCats, type FriendEntry } from "@/lib/friends";
+import { listUnreadNotifications, markAllNotificationsRead, type NotificationEntry } from "@/lib/notifications";
 import { Card } from "@/components/ui/Card";
 import { Sheet } from "@/components/ui/Sheet";
 import { AchievementBadge, AchievementCircle } from "@/components/AchievementBadge";
@@ -78,22 +79,30 @@ export default function ProfilePage() {
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [friendCatCounts, setFriendCatCounts] = useState<Record<string, number>>({});
   const [pendingIncoming, setPendingIncoming] = useState<FriendEntry[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState<NotificationEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
   const loadFriendsAndRequests = useCallback(async () => {
     try {
-      const [f, incoming] = await Promise.all([listFriends(), listPendingIncoming()]);
+      const [f, incoming, notifications] = await Promise.all([
+        listFriends(),
+        listPendingIncoming(),
+        listUnreadNotifications().catch(() => []),
+      ]);
       setFriends(f);
       setPendingIncoming(incoming);
+      setUnreadNotifications(notifications);
       const counts = await Promise.all(f.map((e) => countFriendCats(e.friend.id)));
       setFriendCatCounts(Object.fromEntries(f.map((e, i) => [e.friend.id, counts[i]])));
+      return notifications;
     } catch (err) {
       // friendships collection may not exist yet (backend not migrated) —
       // the profile still renders without the social bits. Ignore
       // auto-cancellation too (e.g. refetch-on-focus superseding this call).
       if (!isAbortError(err)) console.error("Failed to load friends:", err);
+      return [];
     }
   }, []);
 
@@ -215,14 +224,17 @@ export default function ProfilePage() {
         <h1 className="text-[1.375rem] font-bold tracking-tight">Perfil</h1>
         <button
           aria-label="Notificaciones"
-          onClick={() => {
+          onClick={async () => {
             setBellOpen(true);
-            loadFriendsAndRequests();
+            const notifications = await loadFriendsAndRequests();
+            // Marked read on the server right away; kept visible in the sheet
+            // until it's closed (see Sheet's onClose below).
+            markAllNotificationsRead(notifications);
           }}
           className="relative w-10 h-10 rounded-full flex items-center justify-center text-catdex-text active:scale-90 transition-transform"
         >
           <Bell className="h-6 w-6" strokeWidth={1.8} />
-          {pendingIncoming.length > 0 && (
+          {(pendingIncoming.length > 0 || unreadNotifications.length > 0) && (
             <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-catdex-orange border-2 border-catdex-cream" />
           )}
         </button>
@@ -407,8 +419,32 @@ export default function ProfilePage() {
       </Card>
 
       {/* Notification bell sheet — reuses the incoming-requests UI from /friends */}
-      <Sheet open={bellOpen} onClose={() => setBellOpen(false)}>
+      <Sheet
+        open={bellOpen}
+        onClose={() => {
+          setBellOpen(false);
+          setUnreadNotifications([]);
+        }}
+      >
         <div className="px-6 pt-2 pb-4">
+          {unreadNotifications.length > 0 && (
+            <div className="mb-5">
+              <h2 className="text-base font-bold mb-3">Actividad</h2>
+              <div className="space-y-2">
+                {unreadNotifications.map((n) => (
+                  <Link
+                    key={n.id}
+                    href={`/cat?id=${n.refId}`}
+                    onClick={() => setBellOpen(false)}
+                    className="flex items-center gap-2.5 text-sm text-catdex-text-secondary"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-catdex-orange shrink-0" />
+                    {n.type === "share" ? "Un amigo compartió una captura contigo" : "Actividad nueva"}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           <h2 className="text-base font-bold mb-3">Solicitudes de amistad</h2>
           <IncomingRequests entries={pendingIncoming} onChanged={loadFriendsAndRequests} />
         </div>
