@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Flame, Trophy, Heart, ChevronDown, TrendingUp, Medal } from "lucide-react";
+import { Flame, Trophy, Heart, ChevronDown, TrendingUp } from "lucide-react";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getFavorites } from "@/lib/favorites";
 import { TopBar } from "@/components/ui/TopBar";
@@ -25,18 +25,12 @@ interface PhotoRec {
   cat: string;
 }
 
-interface RankUser {
-  id: string;
-  name: string;
-  score: number;
-}
-
-/** "Estadísticas completas" — the growth chart, places ring and ranking that
- * lived in /stats, now behind "Ver todos" in the profile summary card. */
+/** "Estadísticas completas" — the growth chart and places ring that lived
+ * in /stats, now behind "Ver todos" in the profile summary card. The
+ * ranking that used to live here moved to /competition (see BottomNav). */
 export default function FullStatsPage() {
   const [photos, setPhotos] = useState<PhotoRec[]>([]);
   const [catCreatedDates, setCatCreatedDates] = useState<Date[]>([]);
-  const [users, setUsers] = useState<RankUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
   const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
@@ -52,7 +46,7 @@ export default function FullStatsPage() {
       const pb = getPocketBase();
       const userId = pb.authStore.record?.id;
 
-      const [photosResult, catsResult, usersResult] = await Promise.all([
+      const [photosResult, catsResult] = await Promise.all([
         pb.collection("photos").getFullList({
           filter: userId ? `user="${userId}"` : "",
           fields: "created,lat,lng,cat",
@@ -61,12 +55,10 @@ export default function FullStatsPage() {
           filter: userId ? `discoveredBy="${userId}"` : "",
           fields: "id,created",
         }),
-        pb.collection("users").getFullList({ sort: "-score", fields: "id,name,score" }),
       ]);
 
       setPhotos(photosResult as unknown as PhotoRec[]);
       setCatCreatedDates(catsResult.map((c: any) => new Date(c.created)));
-      setUsers((usersResult as unknown as RankUser[]).filter((u) => (u.score || 0) > 0));
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load stats:", err);
     }
@@ -228,31 +220,6 @@ export default function FullStatsPage() {
           </div>
         </Card>
       </div>
-
-      {/* Leaderboard */}
-      {users.length > 0 && (
-        <Card>
-          <div className="flex items-center gap-2 mb-3">
-            <Medal className="h-4 w-4 text-catdex-orange" />
-            <p className="text-[0.9375rem] font-semibold">Ranking</p>
-          </div>
-          <div className="space-y-2.5">
-            {users.slice(0, 10).map((u, i) => (
-              <div key={u.id} className="flex items-center gap-3">
-                <span
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[0.6875rem] font-bold ${
-                    i === 0 ? "bg-catdex-orange text-white" : "bg-catdex-input-bg text-catdex-text-muted"
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <p className="flex-1 text-sm font-medium truncate">{u.name || "Sin nombre"}</p>
-                <p className="text-sm font-bold text-catdex-orange">{u.score} pts</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {/* Period sheet */}
       <Sheet open={periodSheetOpen} onClose={() => setPeriodSheetOpen(false)}>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Check, UserPlus, Trash2, X, RefreshCw, Swords, Users } from "lucide-react";
+import Link from "next/link";
+import { Copy, Check, UserPlus, Trash2, X, RefreshCw, Users } from "lucide-react";
 import confetti from "canvas-confetti";
 import clsx from "clsx";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -21,8 +22,6 @@ import {
   type FriendEntry,
   type FriendUser,
 } from "@/lib/friends";
-import { getWeeklyRanking, type WeeklyRankEntry } from "@/lib/ranking";
-import { listMyDuels, createDuel, cancelDuel, type DuelEntry } from "@/lib/duels";
 import {
   getColonyTotal,
   nextColonyMilestone,
@@ -54,11 +53,7 @@ export default function FriendsPage() {
   const [copied, setCopied] = useState(false);
 
   const [toRemove, setToRemove] = useState<FriendEntry | null>(null);
-  const [weeklyRanking, setWeeklyRanking] = useState<WeeklyRankEntry[]>([]);
-  const [duels, setDuels] = useState<DuelEntry[]>([]);
   const [colonyTotal, setColonyTotal] = useState<number | null>(null);
-  const [challenging, setChallenging] = useState<string | null>(null);
-  const [challengeError, setChallengeError] = useState("");
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -74,18 +69,8 @@ export default function FriendsPage() {
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load friendships:", err);
     }
-    // Independent try/catches — a ranking/duels hiccup shouldn't hide the
-    // core friends list, which just loaded successfully above.
-    try {
-      setWeeklyRanking(await getWeeklyRanking());
-    } catch (err) {
-      if (!isAbortError(err)) console.error("Failed to load weekly ranking:", err);
-    }
-    try {
-      setDuels(await listMyDuels());
-    } catch (err) {
-      if (!isAbortError(err)) console.error("Failed to load duels:", err);
-    }
+    // Independent try/catch — a colony hiccup shouldn't hide the core
+    // friends list, which just loaded successfully above.
     try {
       const total = await getColonyTotal();
       setColonyTotal(total);
@@ -101,27 +86,6 @@ export default function FriendsPage() {
     setLoading(false);
     setRefreshing(false);
   }, []);
-
-  async function handleChallenge(friendId: string) {
-    setChallenging(friendId);
-    setChallengeError("");
-    try {
-      await createDuel(friendId);
-      await load();
-    } catch (err) {
-      setChallengeError((err as { message?: string })?.message || "No se ha podido crear el duelo.");
-    }
-    setChallenging(null);
-  }
-
-  async function handleCancelDuel(duelId: string) {
-    try {
-      await cancelDuel(duelId);
-      load();
-    } catch (err) {
-      console.error("Failed to cancel duel:", err);
-    }
-  }
 
   useEffect(() => {
     if (user) load();
@@ -317,64 +281,6 @@ export default function FriendsPage() {
         </Card>
       )}
 
-      {/* Weekly ranking — friends only, resets Mondays. No divisions/promotion,
-          just "who's gained the most this week" among people you know. */}
-      {!loading && weeklyRanking.length > 0 && (
-        <Card>
-          <CardTitle className="mb-3">Ranking semanal</CardTitle>
-          <div className="space-y-2.5">
-            {weeklyRanking.map((entry, i) => (
-              <div key={entry.userId} className="flex items-center gap-3">
-                <span className="w-6 text-sm font-bold text-catdex-text-muted text-center shrink-0">
-                  {i + 1}
-                </span>
-                <FriendAvatar user={{ id: entry.userId, name: entry.name, avatar: entry.avatar }} className="w-9 h-9 text-sm" />
-                <p className={clsx("flex-1 min-w-0 text-sm truncate", entry.isMe ? "font-bold" : "font-semibold")}>
-                  {entry.isMe ? "Tú" : entry.name || "Sin nombre"}
-                </p>
-                <span className="text-sm font-bold text-catdex-orange">+{entry.weeklyScore}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Active/recent duels */}
-      {!loading && duels.length > 0 && (
-        <Card>
-          <CardTitle className="mb-3">Duelos</CardTitle>
-          <div className="space-y-3">
-            {duels.map((duel) => (
-              <div key={duel.id} className="flex items-center gap-3">
-                <FriendAvatar user={duel.otherUser} className="w-10 h-10 text-sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">vs. {duel.otherUser.name || "Sin nombre"}</p>
-                  <p className="text-[0.75rem] text-catdex-text-muted">
-                    Tú +{duel.myDelta} · {duel.otherUser.name || "Él/ella"} +{duel.theirDelta}
-                    {duel.status === "finished"
-                      ? duel.outcome === "tie"
-                        ? " · Empate"
-                        : duel.outcome === "me"
-                          ? " · ¡Ganaste!"
-                          : " · Perdiste"
-                      : ` · vas ${duel.outcome === "me" ? "ganando" : duel.outcome === "them" ? "perdiendo" : "empatado"}`}
-                  </p>
-                </div>
-                {duel.status === "active" && (
-                  <button
-                    aria-label="Cancelar duelo"
-                    onClick={() => handleCancelDuel(duel.id)}
-                    className="w-9 h-9 rounded-full bg-catdex-input-bg text-catdex-text-muted flex items-center justify-center active:scale-90 transition-transform"
-                  >
-                    <X className="h-4.5 w-4.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {/* Friends list */}
       <Card>
         <CardTitle className="mb-3">Amigos</CardTitle>
@@ -386,24 +292,17 @@ export default function FriendsPage() {
           </p>
         ) : (
           <div className="space-y-2.5">
-            {challengeError && <p className="text-[0.8125rem] text-catdex-red px-1">{challengeError}</p>}
             {friends.map((e) => (
               <div key={e.friendshipId} className="flex items-center gap-3">
-                <FriendAvatar user={e.friend} className="w-11 h-11 text-base" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{e.friend.name || "Sin nombre"}</p>
-                  {e.friend.score != null && (
-                    <p className="text-[0.75rem] text-catdex-text-muted">{e.friend.score} pts</p>
-                  )}
-                </div>
-                <button
-                  aria-label="Retar a un duelo"
-                  onClick={() => handleChallenge(e.friend.id)}
-                  disabled={challenging === e.friend.id}
-                  className="w-9 h-9 rounded-full bg-catdex-orange/10 text-catdex-orange flex items-center justify-center active:scale-90 transition-transform disabled:opacity-40"
-                >
-                  <Swords className="h-4.5 w-4.5" />
-                </button>
+                <Link href={`/profile/${e.friend.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                  <FriendAvatar user={e.friend} className="w-11 h-11 text-base" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{e.friend.name || "Sin nombre"}</p>
+                    {e.friend.score != null && (
+                      <p className="text-[0.75rem] text-catdex-text-muted">{e.friend.score} pts</p>
+                    )}
+                  </div>
+                </Link>
                 <button
                   aria-label="Eliminar amigo"
                   onClick={() => setToRemove(e)}

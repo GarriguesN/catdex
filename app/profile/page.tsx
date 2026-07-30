@@ -15,6 +15,7 @@ import {
   Plus,
   ChevronRight,
   UserPlus,
+  Settings,
 } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
@@ -226,25 +227,35 @@ export default function ProfilePage() {
 
   return (
     <div className="pt-3 space-y-4">
-      {/* Header — title left, notification bell right with unread dot */}
+      {/* Header — title left, notification bell + settings right (Ajustes
+          no longer has its own bottom-nav tab, see components/BottomNav.tsx) */}
       <header className="flex items-center justify-between pb-1">
         <h1 className="text-[1.375rem] font-bold tracking-tight">Perfil</h1>
-        <button
-          aria-label="Notificaciones"
-          onClick={async () => {
-            setBellOpen(true);
-            const notifications = await loadFriendsAndRequests();
-            // Marked read on the server right away; kept visible in the sheet
-            // until it's closed (see Sheet's onClose below).
-            markAllNotificationsRead(notifications);
-          }}
-          className="relative w-10 h-10 rounded-full flex items-center justify-center text-catdex-text active:scale-90 transition-transform"
-        >
-          <Bell className="h-6 w-6" strokeWidth={1.8} />
-          {(pendingIncoming.length > 0 || unreadNotifications.length > 0) && (
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-catdex-orange border-2 border-catdex-cream" />
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            aria-label="Notificaciones"
+            onClick={async () => {
+              setBellOpen(true);
+              const notifications = await loadFriendsAndRequests();
+              // Marked read on the server right away; kept visible in the sheet
+              // until it's closed (see Sheet's onClose below).
+              markAllNotificationsRead(notifications);
+            }}
+            className="relative w-10 h-10 rounded-full flex items-center justify-center text-catdex-text active:scale-90 transition-transform"
+          >
+            <Bell className="h-6 w-6" strokeWidth={1.8} />
+            {(pendingIncoming.length > 0 || unreadNotifications.length > 0) && (
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-catdex-orange border-2 border-catdex-cream" />
+            )}
+          </button>
+          <Link
+            href="/settings"
+            aria-label="Ajustes"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-catdex-text active:scale-90 transition-transform"
+          >
+            <Settings className="h-6 w-6" strokeWidth={1.8} />
+          </Link>
+        </div>
       </header>
 
       {/* Profile section — avatar with floating edit button, name, since, CTA */}
@@ -411,7 +422,11 @@ export default function ProfilePage() {
             </span>
           </Link>
           {friends.map((e) => (
-            <div key={e.friendshipId} className="flex flex-col items-center gap-1.5 w-16 shrink-0">
+            <Link
+              key={e.friendshipId}
+              href={`/profile/${e.friend.id}`}
+              className="flex flex-col items-center gap-1.5 w-16 shrink-0"
+            >
               <FriendAvatar user={e.friend} className="w-14 h-14 text-lg" />
               <span className="text-[0.6875rem] font-semibold leading-tight text-center truncate max-w-full">
                 {e.friend.name || "Sin nombre"}
@@ -421,7 +436,7 @@ export default function ProfilePage() {
                   {friendCatCounts[e.friend.id]} gatos
                 </span>
               )}
-            </div>
+            </Link>
           ))}
         </div>
         <Link

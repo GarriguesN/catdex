@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import clsx from "clsx";
 import { Flame, Search, SlidersHorizontal, X } from "lucide-react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getFavorites, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
+import { listFriends, friendAvatarUrl } from "@/lib/friends";
 import { CatCard } from "@/components/CatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { InstallBanner } from "@/components/InstallBanner";
@@ -20,10 +23,12 @@ interface Cat {
   lastSeen: number;
   createdAt: number;
   thumbUrl: string | null;
+  discoverer?: { id: string; name: string; avatarUrl: string | null };
 }
 
 type Filter = "all" | "favorites" | "recent";
 type SortMode = "recent" | "photos" | "alpha";
+type View = "mine" | "friends";
 
 const RECENT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -31,6 +36,10 @@ export default function CollectionPage() {
   const { user, loading: authLoading } = useRequireAuth();
   const [cats, setCats] = useState<Cat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<View>("mine");
+  const [friendsCats, setFriendsCats] = useState<Cat[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(true);
+  const [hasFriends, setHasFriends] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -47,6 +56,11 @@ export default function CollectionPage() {
     if (authLoading || !user) return;
     loadCats();
   }, [user, authLoading]);
+
+  useEffect(() => {
+    if (authLoading || !user || view !== "friends") return;
+    loadFriendsCats();
+  }, [user, authLoading, view]);
 
   async function loadCats() {
     setLoading(true);
@@ -88,6 +102,63 @@ export default function CollectionPage() {
     setLoading(false);
   }
 
+  async function loadFriendsCats() {
+    setFriendsLoading(true);
+    try {
+      const friends = await listFriends();
+      setHasFriends(friends.length > 0);
+      if (friends.length === 0) {
+        setFriendsCats([]);
+        setFriendsLoading(false);
+        return;
+      }
+
+      const pb = getPocketBase();
+      const friendIds = friends.map((f) => f.friend.id);
+      const catsFilter = friendIds.map((id) => `discoveredBy="${id}"`).join(" || ");
+      const result = await pb.collection("cats").getList(1, 100, {
+        sort: "-created",
+        filter: catsFilter,
+        expand: "discoveredBy",
+      });
+
+      // Latest photo per cat, across all friends → grid thumbnail
+      const photosFilter = friendIds.map((id) => `user="${id}"`).join(" || ");
+      const photos = await pb.collection("photos").getList(1, 500, {
+        filter: photosFilter,
+        sort: "-created",
+        fields: "id,cat,thumb,photo",
+      });
+      const thumbByCat = new Map<string, string>();
+      for (const p of photos.items as any[]) {
+        if (!thumbByCat.has(p.cat)) {
+          const file = p.thumb || p.photo;
+          if (file) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${file}?thumb=300x300`);
+        }
+      }
+
+      setFriendsCats(
+        result.items.map((item: any) => {
+          const discoveredBy = item.expand?.discoveredBy;
+          return {
+            id: item.id,
+            name: item.name || "Sin nombre",
+            photoCount: item.photoCount || 0,
+            lastSeen: new Date(item.updated || item.created).getTime(),
+            createdAt: new Date(item.created).getTime(),
+            thumbUrl: thumbByCat.get(item.id) || null,
+            discoverer: discoveredBy
+              ? { id: discoveredBy.id, name: discoveredBy.name || "Sin nombre", avatarUrl: friendAvatarUrl(discoveredBy) }
+              : undefined,
+          };
+        })
+      );
+    } catch (err) {
+      if (!isAbortError(err)) console.error("Failed to load friends' cats:", err);
+    }
+    setFriendsLoading(false);
+  }
+
   // Stable per-user Pokédex-style numbering — #1 is the first cat this user
   // ever captured, regardless of how the list below is currently sorted/filtered.
   const rankById = useMemo(() => {
@@ -97,7 +168,8 @@ export default function CollectionPage() {
 
   const filtered = useMemo(() => {
     const now = Date.now();
-    return cats
+    const source = view === "mine" ? cats : friendsCats;
+    return source
       .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
       .filter((c) => {
         if (filter === "favorites") return favorites.has(c.id);
@@ -111,7 +183,9 @@ export default function CollectionPage() {
           case "alpha": return a.name.localeCompare(b.name);
         }
       });
-  }, [cats, search, filter, sort, favorites]);
+  }, [cats, friendsCats, view, search, filter, sort, favorites]);
+
+  const showingLoading = view === "mine" ? loading || authLoading : friendsLoading;
 
   return (
     <>
@@ -132,6 +206,28 @@ export default function CollectionPage() {
           </IconButton>
         </div>
       </header>
+
+      {/* Mi colección / Amigos */}
+      <div className="flex bg-catdex-input-bg rounded-full p-1 mb-4">
+        <button
+          onClick={() => setView("mine")}
+          className={clsx(
+            "flex-1 rounded-full py-2 text-[0.8125rem] font-semibold transition-colors",
+            view === "mine" ? "bg-catdex-surface shadow-soft text-catdex-text" : "text-catdex-text-muted"
+          )}
+        >
+          Mi colección
+        </button>
+        <button
+          onClick={() => setView("friends")}
+          className={clsx(
+            "flex-1 rounded-full py-2 text-[0.8125rem] font-semibold transition-colors",
+            view === "friends" ? "bg-catdex-surface shadow-soft text-catdex-text" : "text-catdex-text-muted"
+          )}
+        >
+          Amigos
+        </button>
+      </div>
 
       {(user?.currentStreak || 0) > 0 && (
         <div className="flex items-center gap-2.5 bg-catdex-orange/10 rounded-2xl px-4 py-3 mb-4">
@@ -160,16 +256,31 @@ export default function CollectionPage() {
         <Chip active={filter === "recent"} onClick={() => setFilter("recent")}>Recientes</Chip>
       </div>
 
-      {loading || authLoading ? (
+      {showingLoading ? (
         <div className="grid grid-cols-3 gap-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="aspect-square skeleton rounded-2xl" />
           ))}
         </div>
+      ) : view === "friends" && !hasFriends ? (
+        <div className="empty-state">
+          <p className="text-4xl mb-4">🐾</p>
+          <p className="font-semibold text-catdex-text">Aún no tienes amigos</p>
+          <p className="text-sm text-catdex-text-muted mt-1.5 max-w-xs text-center">
+            Añade amigos para ver aquí todas sus capturas
+          </p>
+          <Link href="/friends" className="btn-primary mt-5">
+            Ir a Amigos
+          </Link>
+        </div>
       ) : filtered.length === 0 ? (
         search || filter !== "all" ? (
           <p className="text-center text-catdex-text-muted py-16 text-sm">
             {search ? `No hay gatos que coincidan con “${search}”` : filter === "favorites" ? "Aún no tienes favoritos" : "Nada reciente por aquí"}
+          </p>
+        ) : view === "friends" ? (
+          <p className="text-center text-catdex-text-muted py-16 text-sm">
+            Tus amigos aún no han capturado ningún gato
           </p>
         ) : (
           <EmptyState />
@@ -180,12 +291,13 @@ export default function CollectionPage() {
             <CatCard
               key={cat.id}
               id={cat.id}
-              rank={rankById.get(cat.id) ?? 0}
+              rank={view === "mine" ? rankById.get(cat.id) ?? 0 : undefined}
               name={cat.name}
               thumbUrl={cat.thumbUrl}
               date={new Date(cat.lastSeen)}
               favorite={favorites.has(cat.id)}
               onToggleFavorite={() => toggleFavorite(cat.id)}
+              discoverer={cat.discoverer}
             />
           ))}
         </div>
