@@ -35,6 +35,7 @@ export function EditProfileSheet({
   function pickAvatar(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
     e.target.value = "";
@@ -60,6 +61,7 @@ export function EditProfileSheet({
   }
 
   function handleClose() {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setName(null);
     setAvatarFile(null);
     setAvatarPreview(null);

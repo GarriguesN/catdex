@@ -150,7 +150,7 @@ export default function CapturePage() {
     }
   }, []);
 
-  // ── Pipeline: normalize → blur check → MobileNet → pHash + picker ──
+  // ── Pipeline: normalize → blur check → coco-ssd detection → pHash + picker ──
 
   async function processCapture(file: Blob) {
     const captureId = Math.random().toString(36).slice(2, 8);
@@ -186,7 +186,7 @@ export default function CapturePage() {
       return;
     }
 
-    // 3. MobileNet gate
+    // 3. coco-ssd cat-detection gate
     setScreen("detecting");
     const result = await classifyPhoto(img);
     console.log(`[capture:${captureId}] classifier result:`, result);

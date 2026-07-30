@@ -45,6 +45,10 @@ export default function AccountPage() {
       const userId = pb.authStore.record?.id;
       const cats = await pb.collection("cats").getFullList({ filter: `discoveredBy="${userId}"` });
       for (const cat of cats) {
+        const photos = await pb.collection("photos").getFullList({ filter: `cat="${cat.id}"` });
+        for (const photo of photos) {
+          await pb.collection("photos").delete(photo.id);
+        }
         await pb.collection("cats").delete(cat.id);
       }
       window.location.href = "/";
