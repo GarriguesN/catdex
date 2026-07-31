@@ -99,9 +99,11 @@ function FitBounds({ markers }: { markers: MapMarkerData[] }) {
 function ClusteredMarkers({
   markers,
   onMarkerClick,
+  onClusterClick,
 }: {
   markers: MapMarkerData[];
   onMarkerClick: (m: MapMarkerData) => void;
+  onClusterClick: (items: MapMarkerData[]) => void;
 }) {
   const map = useMap();
   const [zoom, setZoom] = useState(map.getZoom());
@@ -129,9 +131,7 @@ function ClusteredMarkers({
               key={`cluster-${i}-${c.items.length}`}
               position={[c.lat, c.lng]}
               icon={createClusterIcon(c.items.length, color)}
-              eventHandlers={{
-                click: () => map.setView([c.lat, c.lng], Math.min(map.getZoom() + 2, 18), { animate: true }),
-              }}
+              eventHandlers={{ click: () => onClusterClick(c.items) }}
             />
           );
         }
@@ -155,9 +155,11 @@ function ClusteredMarkers({
 export default function LeafletMap({
   markers,
   onMarkerClick,
+  onClusterClick,
 }: {
   markers: MapMarkerData[];
   onMarkerClick: (m: MapMarkerData) => void;
+  onClusterClick: (items: MapMarkerData[]) => void;
 }) {
   if (markers.length === 0) return null;
 
@@ -174,7 +176,7 @@ export default function LeafletMap({
     >
       <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
       <FitBounds markers={markers} />
-      <ClusteredMarkers markers={markers} onMarkerClick={onMarkerClick} />
+      <ClusteredMarkers markers={markers} onMarkerClick={onMarkerClick} onClusterClick={onClusterClick} />
     </MapContainer>
   );
 }

@@ -29,6 +29,7 @@ function MapPageInner() {
   const [markers, setMarkers] = useState<MapMarkerData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMarker, setSelectedMarker] = useState<MapMarkerData | null>(null);
+  const [clusterCats, setClusterCats] = useState<MapMarkerData[] | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
 
@@ -149,7 +150,7 @@ function MapPageInner() {
         // Note: isolate below contains Leaflet's internal pane z-indexes
         // (up to 600+) so they can't escape and render above fixed UI.
         <div className="relative isolate flex-1 rounded-3xl overflow-hidden shadow-soft">
-          <LazyMap markers={markers} onMarkerClick={setSelectedMarker} />
+          <LazyMap markers={markers} onMarkerClick={setSelectedMarker} onClusterClick={setClusterCats} />
         </div>
       )}
 
@@ -185,6 +186,47 @@ function MapPageInner() {
             <Link href={`/cat?id=${selectedMarker.catId}`} className="btn-primary w-full mt-5">
               Ver ficha
             </Link>
+          </div>
+        )}
+      </Sheet>
+
+      {/* Cluster list sheet — tapping a cluster's count opens this instead
+          of just zooming in, since at some zoom levels pins never fully
+          separate (e.g. two cats seen at the exact same spot). */}
+      <Sheet open={!!clusterCats} onClose={() => setClusterCats(null)}>
+        {clusterCats && (
+          <div className="px-6 pt-2 pb-4 max-h-[60dvh] overflow-y-auto">
+            <h2 className="text-base font-bold mb-3">{clusterCats.length} gatos en esta zona</h2>
+            <div className="space-y-1">
+              {clusterCats.map((m) => {
+                const thumb = m.thumbFieldName
+                  ? `${pb.baseUrl}/api/files/photos/${m.photoId}/${m.thumbFieldName}?thumb=100x100f`
+                  : null;
+                return (
+                  <Link
+                    key={m.id}
+                    href={`/cat?id=${m.catId}`}
+                    onClick={() => setClusterCats(null)}
+                    className="flex items-center gap-3 -mx-2 p-2 rounded-2xl active:bg-catdex-input-bg transition-colors"
+                  >
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-catdex-input-bg flex items-center justify-center text-xl shrink-0">
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        "🐾"
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{m.catName}</p>
+                      {!m.isOwn && m.ownerName && (
+                        <p className="text-[0.75rem] text-catdex-blue font-semibold">Captura de {m.ownerName}</p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
       </Sheet>
