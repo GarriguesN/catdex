@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.1",
+    date: "Julio 2026",
+    items: [
+      "Thumbnails corregidos: las fotos ya no se estiran ni recortan mal en las tarjetas",
+      "Push notifications más robustas: manejo de errores de suscripción mejorado",
+      "Fix: crear duelos ya no falla con error 400 por la regla de validación",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "Agosto 2026",
     items: [
