@@ -437,14 +437,14 @@ function CatDetailInner() {
         {photos.length > 1 && (
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 -mt-1">
             {photos.map((p, i) => {
-              const thumb = photoUrl(p, "120x120") || photoUrl(p);
+              const thumb = photoUrl(p, "120x120f") || photoUrl(p);
               return (
                 <button
                   key={p.id}
                   onClick={() => scrollToPhoto(i)}
                   aria-label={`Ver foto ${i + 1}`}
                   className={clsx(
-                    "relative shrink-0 w-14 h-14 rounded-xl overflow-hidden transition-all active:scale-95",
+                    "relative shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-catdex-input-bg transition-all active:scale-95",
                     i === photoIndex
                       ? "ring-2 ring-catdex-orange ring-offset-2 ring-offset-catdex-cream"
                       : "opacity-70"
@@ -452,7 +452,7 @@ function CatDetailInner() {
                 >
                   {thumb && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    <img src={thumb} alt="" className="w-full h-full object-contain" loading="lazy" />
                   )}
                 </button>
               );

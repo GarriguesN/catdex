@@ -137,10 +137,7 @@ export default function FriendProfilePage() {
       date: new Date(p.created).getTime(),
       catId: p.cat,
       catName: p.expand?.cat?.name || "Gato",
-      thumbUrl:
-        p.thumb || p.photo
-          ? `${pb.baseUrl}/api/files/photos/${p.id}/${p.thumb || p.photo}?thumb=100x100`
-          : null,
+      thumbUrl: p.photo ? `${pb.baseUrl}/api/files/photos/${p.id}/${p.photo}?thumb=100x100f` : null,
       city: p.city || "",
     }));
     const milestoneItems: TimelineItem[] = achievements.map((a) => ({
@@ -278,7 +275,7 @@ export default function FriendProfilePage() {
                       </div>
                       {item.thumbUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.thumbUrl} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                        <img src={item.thumbUrl} alt="" className="w-12 h-12 rounded-xl bg-catdex-input-bg object-contain shrink-0" />
                       )}
                     </Link>
                   ) : (

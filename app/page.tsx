@@ -76,13 +76,16 @@ export default function CollectionPage() {
       const photos = await pb.collection("photos").getList(1, 200, {
         filter: `user="${myId}"`,
         sort: "-created",
-        fields: "id,cat,thumb,photo",
+        fields: "id,cat,photo",
       });
       const thumbByCat = new Map<string, string>();
       for (const p of photos.items as any[]) {
         if (!thumbByCat.has(p.cat)) {
-          const file = p.thumb || p.photo;
-          if (file) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${file}?thumb=300x300`);
+          // "f" fit mode scales the original photo to fit within the box
+          // without cropping — the client-generated square "thumb" field
+          // is never used for display since old captures baked a stretch
+          // bug into it that no amount of CSS can undo.
+          if (p.photo) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${p.photo}?thumb=300x300f`);
         }
       }
 
@@ -127,13 +130,16 @@ export default function CollectionPage() {
       const photos = await pb.collection("photos").getList(1, 500, {
         filter: photosFilter,
         sort: "-created",
-        fields: "id,cat,thumb,photo",
+        fields: "id,cat,photo",
       });
       const thumbByCat = new Map<string, string>();
       for (const p of photos.items as any[]) {
         if (!thumbByCat.has(p.cat)) {
-          const file = p.thumb || p.photo;
-          if (file) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${file}?thumb=300x300`);
+          // "f" fit mode scales the original photo to fit within the box
+          // without cropping — the client-generated square "thumb" field
+          // is never used for display since old captures baked a stretch
+          // bug into it that no amount of CSS can undo.
+          if (p.photo) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${p.photo}?thumb=300x300f`);
         }
       }
 

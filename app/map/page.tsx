@@ -85,7 +85,7 @@ function MapPageInner() {
               id: p.id,
               catId: p.cat,
               catName: p.expand?.cat?.name || "Gato",
-              thumbFieldName: p.thumb || p.photo || undefined,
+              thumbFieldName: p.photo || undefined,
               photoId: p.id,
               lat: p.lat,
               lng: p.lng,
@@ -120,7 +120,7 @@ function MapPageInner() {
   const pb = getPocketBase();
   const selectedThumb =
     selectedMarker?.thumbFieldName &&
-    `${pb.baseUrl}/api/files/photos/${selectedMarker.photoId}/${selectedMarker.thumbFieldName}?thumb=100x100`;
+    `${pb.baseUrl}/api/files/photos/${selectedMarker.photoId}/${selectedMarker.thumbFieldName}?thumb=100x100f`;
 
   return (
     <div className="flex flex-col h-[calc(100dvh-6rem)]">
@@ -161,7 +161,7 @@ function MapPageInner() {
               <div className="w-16 h-16 rounded-2xl overflow-hidden bg-catdex-input-bg flex items-center justify-center text-2xl shrink-0">
                 {selectedThumb ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selectedThumb} alt="" className="w-full h-full object-cover" />
+                  <img src={selectedThumb} alt="" className="w-full h-full object-contain" />
                 ) : (
                   "🐾"
                 )}

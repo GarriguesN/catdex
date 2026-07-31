@@ -43,8 +43,15 @@ export default function NotificationsPage() {
       /* defaults */
     }
 
-    setAvailability(getPushAvailability());
-    getExistingSubscription().then((sub) => setSubscribed(!!sub));
+    const avail = getPushAvailability();
+    console.log("[push] availability:", avail);
+    setAvailability(avail);
+    getExistingSubscription()
+      .then((sub) => {
+        console.log("[push] existing subscription:", sub ? sub.endpoint : null);
+        setSubscribed(!!sub);
+      })
+      .catch((err) => console.error("[push] getExistingSubscription failed:", err));
   }, []);
 
   function update(key: keyof Prefs, value: boolean) {
@@ -54,6 +61,7 @@ export default function NotificationsPage() {
   }
 
   async function togglePush(enable: boolean) {
+    console.log("[push] toggle:", enable);
     setWorking(true);
     setError("");
     try {
@@ -61,6 +69,7 @@ export default function NotificationsPage() {
       else await unsubscribeFromPush();
       setSubscribed(enable);
     } catch (err) {
+      console.error("[push] toggle failed:", err);
       setError((err as Error).message || "No se ha podido cambiar el estado de las notificaciones.");
     }
     setWorking(false);

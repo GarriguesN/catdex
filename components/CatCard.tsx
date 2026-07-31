@@ -33,7 +33,7 @@ export function CatCard({ id, rank, name, thumbUrl, date, favorite, onToggleFavo
         >
           {thumbUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={thumbUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+            <img src={thumbUrl} alt="" className="w-full h-full object-contain" loading="lazy" />
           ) : (
             <span className="w-full h-full flex items-center justify-center">
               <Camera className="h-7 w-7 text-catdex-gray-light" />

@@ -139,10 +139,25 @@ export default function CapturePage() {
     }
   }, [hasStream]);
 
-  function flipCamera() {
+  async function flipCamera() {
     const next = facing === "environment" ? "user" : "environment";
     setFacing(next);
     setTorchOn(false);
+
+    // Retarget the existing track instead of stopping it and reopening a
+    // brand new getUserMedia stream — repeated stop()+reacquire cycles are
+    // the same pattern that makes some WebKit/iOS PWA builds forget the
+    // camera grant and re-prompt for permission.
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (track) {
+      try {
+        await track.applyConstraints({ facingMode: next });
+        return;
+      } catch {
+        // No matching physical camera for that constraint on this device —
+        // fall through to a full stop+reopen.
+      }
+    }
     startCamera(next);
   }
 

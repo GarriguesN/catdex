@@ -43,27 +43,55 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return array;
 }
 
+/** Some of the calls below (service worker readiness, the permission prompt
+ * itself) have been observed to hang indefinitely on certain WebKit/PWA
+ * combinations instead of rejecting — without a timeout that leaves the UI
+ * stuck on "working" forever with no error and nothing in the console. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Tiempo de espera agotado: ${label}`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 /** Null if not currently subscribed on this device. */
 export async function getExistingSubscription(): Promise<PushSubscription | null> {
   if (getPushAvailability() !== "ready") return null;
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await withTimeout(navigator.serviceWorker.ready, 8000, "service worker");
   return reg.pushManager.getSubscription();
 }
 
 export async function subscribeToPush(): Promise<void> {
+  console.log("[push] subscribeToPush: start");
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!vapidKey) throw new Error("Push no configurado (falta la clave VAPID pública).");
 
-  const permission = await Notification.requestPermission();
+  const permission = await withTimeout(
+    Notification.requestPermission(),
+    20000,
+    "permiso de notificaciones"
+  );
+  console.log("[push] permission:", permission);
   if (permission !== "granted") throw new Error("Permiso de notificaciones denegado.");
 
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await withTimeout(navigator.serviceWorker.ready, 8000, "service worker");
+  console.log("[push] service worker ready, scope:", reg.scope);
   const subscription =
     (await reg.pushManager.getSubscription()) ||
     (await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
     }));
+  console.log("[push] subscribed, endpoint:", subscription.endpoint);
 
   const json = subscription.toJSON();
   const pb = getPocketBase();
@@ -81,6 +109,9 @@ export async function subscribeToPush(): Promise<void> {
       p256dh: json.keys?.p256dh,
       auth: json.keys?.auth,
     });
+    console.log("[push] push_subscriptions record created");
+  } else {
+    console.log("[push] push_subscriptions record already exists, skipping create");
   }
 }
 

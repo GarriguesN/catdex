@@ -44,13 +44,12 @@ export function CatPicker({ suggestedIds, onSelect, onCancel }: CatPickerProps) 
       const photos = await pb.collection("photos").getList(1, 200, {
         filter: `user="${myId}"`,
         sort: "-created",
-        fields: "id,cat,thumb,photo",
+        fields: "id,cat,photo",
       });
       const thumbByCat = new Map<string, string>();
       for (const p of photos.items as any[]) {
         if (!thumbByCat.has(p.cat)) {
-          const file = p.thumb || p.photo;
-          if (file) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${file}?thumb=100x100`);
+          if (p.photo) thumbByCat.set(p.cat, `${pb.baseUrl}/api/files/photos/${p.id}/${p.photo}?thumb=100x100f`);
         }
       }
 
@@ -126,7 +125,7 @@ export function CatPicker({ suggestedIds, onSelect, onCancel }: CatPickerProps) 
                 <div className="w-13 h-13 min-w-[3.25rem] min-h-[3.25rem] rounded-2xl overflow-hidden bg-catdex-input-bg flex items-center justify-center text-xl">
                   {cat.thumbUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cat.thumbUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={cat.thumbUrl} alt="" className="w-full h-full object-contain" />
                   ) : (
                     "🐱"
                   )}
