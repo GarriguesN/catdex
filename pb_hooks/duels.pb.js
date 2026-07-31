@@ -22,13 +22,26 @@ onRecordCreateRequest((e) => {
 
   let friendship = null;
   try {
-    friendship = $app.findFirstRecordByFilter(
+    // findFirstRecordByFilter with relation fields has inconsistent behavior
+    // across PocketBase versions — use findRecordsByFilter + manual check.
+    const rows = $app.findRecordsByFilter(
       "friendships",
-      "status = 'accepted' && ((requester = {:a} && addressee = {:b}) || (requester = {:b} && addressee = {:a}))",
-      { a: challenger, b: opponent }
+      "status = 'accepted'",
+      "",
+      0,
+      0,
+      {}
     );
+    for (const row of rows) {
+      const req = row.getString("requester");
+      const addr = row.getString("addressee");
+      if ((req === challenger && addr === opponent) || (req === opponent && addr === challenger)) {
+        friendship = row;
+        break;
+      }
+    }
   } catch (_) {
-    // not found — falls through to the check below
+    // not found — falls through
   }
   if (!friendship) {
     throw new BadRequestError("Solo puedes retar a amigos aceptados.");
@@ -36,11 +49,22 @@ onRecordCreateRequest((e) => {
 
   let existingActive = null;
   try {
-    existingActive = $app.findFirstRecordByFilter(
+    const rows = $app.findRecordsByFilter(
       "duels",
-      "status = 'active' && ((challenger = {:a} && opponent = {:b}) || (challenger = {:b} && opponent = {:a}))",
-      { a: challenger, b: opponent }
+      "status = 'active'",
+      "",
+      0,
+      0,
+      {}
     );
+    for (const row of rows) {
+      const ch = row.getString("challenger");
+      const op = row.getString("opponent");
+      if ((ch === challenger && op === opponent) || (ch === opponent && op === challenger)) {
+        existingActive = row;
+        break;
+      }
+    }
   } catch (_) {
     // none — ok
   }
