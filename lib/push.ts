@@ -9,9 +9,9 @@
 import { getPocketBase } from "./pocketbase";
 
 export type PushAvailability =
-  | "unsupported" // browser has no Push API at all
-  | "ios-needs-install" // iOS Safari/PWA, but not added to home screen yet
-  | "ready"; // can call subscribeToPush() directly
+  | "unsupported"
+  | "ios-needs-install"
+  | "ready";
 
 function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -20,7 +20,6 @@ function isIos(): boolean {
 function isStandalone(): boolean {
   return (
     window.matchMedia?.("(display-mode: standalone)").matches ||
-    // iOS-specific flag, not covered by the media query above on older iOS
     (navigator as unknown as { standalone?: boolean }).standalone === true
   );
 }
@@ -43,37 +42,39 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return array;
 }
 
-/** Some of the calls below (service worker readiness, the permission prompt
- * itself) have been observed to hang indefinitely on certain WebKit/PWA
- * combinations instead of rejecting — without a timeout that leaves the UI
- * stuck on "working" forever with no error and nothing in the console. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`Tiempo de espera agotado: ${label}`)), ms);
     promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      }
+      (v) => { clearTimeout(timer); resolve(v); },
+      (err) => { clearTimeout(timer); reject(err); }
     );
   });
 }
 
-/** Null if not currently subscribed on this device. */
+async function getRegistration(): Promise<ServiceWorkerRegistration> {
+  // Try ready (should be instant if SW is active)
+  try {
+    return await withTimeout(navigator.serviceWorker.ready, 5000, "service worker ready");
+  } catch {
+    console.log("[push] SW not ready, trying explicit registration...");
+  }
+  // Try existing registration
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (existing) return existing;
+  // Register fresh
+  const reg = await withTimeout(
+    navigator.serviceWorker.register("/sw.js"),
+    10000,
+    "service worker register"
+  );
+  await withTimeout(navigator.serviceWorker.ready, 10000, "service worker activate");
+  return reg;
+}
+
 export async function getExistingSubscription(): Promise<PushSubscription | null> {
   if (getPushAvailability() !== "ready") return null;
-  let reg: ServiceWorkerRegistration;
-  try {
-    reg = await withTimeout(navigator.serviceWorker.ready, 30000, "service worker");
-  } catch {
-    // Fallback: try to register/retrieve explicitly
-    reg = await navigator.serviceWorker.register("/sw.js");
-    await navigator.serviceWorker.ready;
-  }
+  const reg = await getRegistration();
   return reg.pushManager.getSubscription();
 }
 
@@ -90,14 +91,9 @@ export async function subscribeToPush(): Promise<void> {
   console.log("[push] permission:", permission);
   if (permission !== "granted") throw new Error("Permiso de notificaciones denegado.");
 
-  let reg: ServiceWorkerRegistration;
-  try {
-    reg = await withTimeout(navigator.serviceWorker.ready, 30000, "service worker");
-  } catch {
-    reg = await navigator.serviceWorker.register("/sw.js");
-    await navigator.serviceWorker.ready;
-  }
+  const reg = await getRegistration();
   console.log("[push] service worker ready, scope:", reg.scope);
+
   const subscription =
     (await reg.pushManager.getSubscription()) ||
     (await reg.pushManager.subscribe({
@@ -109,8 +105,6 @@ export async function subscribeToPush(): Promise<void> {
   const json = subscription.toJSON();
   const pb = getPocketBase();
   const userId = pb.authStore.record?.id;
-  // One row per endpoint (a re-subscribe on the same device reuses the same
-  // endpoint) — avoid duplicates if the user toggles this on/off.
   const existing = await pb.collection("push_subscriptions").getFullList({
     filter: `endpoint="${json.endpoint}"`,
     fields: "id",
@@ -140,4 +134,29 @@ export async function unsubscribeFromPush(): Promise<void> {
     fields: "id",
   });
   await Promise.all(rows.map((r) => pb.collection("push_subscriptions").delete(r.id)));
+}
+
+/** Send a test push notification to the current device. */
+export async function sendTestNotification(): Promise<boolean> {
+  const sub = await getExistingSubscription();
+  if (!sub) {
+    console.warn("[push] sendTestNotification: no subscription");
+    return false;
+  }
+  try {
+    const resp = await fetch("/api/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subscription: sub.toJSON(),
+        title: "¡Prueba de notificación!",
+        body: "Si ves esto, las notificaciones de CatDex funcionan correctamente.",
+        url: "/",
+      }),
+    });
+    return resp.ok;
+  } catch (err) {
+    console.error("[push] sendTestNotification failed:", err);
+    return false;
+  }
 }

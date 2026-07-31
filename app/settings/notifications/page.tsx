@@ -9,6 +9,7 @@ import {
   getExistingSubscription,
   subscribeToPush,
   unsubscribeFromPush,
+  sendTestNotification,
   type PushAvailability,
 } from "@/lib/push";
 
@@ -34,6 +35,8 @@ export default function NotificationsPage() {
   const [subscribed, setSubscribed] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+
+  const [testSent, setTestSent] = useState(false);
 
   useEffect(() => {
     try {
@@ -119,6 +122,21 @@ export default function NotificationsPage() {
         )}
 
         {error && <p className="text-[0.8125rem] text-catdex-red mt-2">{error}</p>}
+
+        {subscribed && (
+          <div className="mt-3 pt-3 border-t border-catdex-hairline">
+            <button
+              onClick={async () => {
+                const ok = await sendTestNotification();
+                setTestSent(ok);
+                setTimeout(() => setTestSent(false), 3000);
+              }}
+              className="text-sm font-medium text-catdex-orange active:text-catdex-orange/70 transition-colors"
+            >
+              {testSent ? "✓ Notificación enviada" : "Probar notificación"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card overflow-hidden divide-y divide-catdex-hairline">
