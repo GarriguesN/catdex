@@ -222,6 +222,9 @@ function MapPageInner() {
                       {!m.isOwn && m.ownerName && (
                         <p className="text-[0.75rem] text-catdex-blue font-semibold">Captura de {m.ownerName}</p>
                       )}
+                      <p className="text-[0.7rem] text-catdex-gray-light mt-0.5">
+                        {new Date(m.takenAt).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
                     </div>
                   </Link>
                 );
