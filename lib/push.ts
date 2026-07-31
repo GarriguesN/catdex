@@ -66,7 +66,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 /** Null if not currently subscribed on this device. */
 export async function getExistingSubscription(): Promise<PushSubscription | null> {
   if (getPushAvailability() !== "ready") return null;
-  const reg = await withTimeout(navigator.serviceWorker.ready, 30000, "service worker");
+  let reg: ServiceWorkerRegistration;
+  try {
+    reg = await withTimeout(navigator.serviceWorker.ready, 30000, "service worker");
+  } catch {
+    // Fallback: try to register/retrieve explicitly
+    reg = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+  }
   return reg.pushManager.getSubscription();
 }
 
@@ -83,7 +90,13 @@ export async function subscribeToPush(): Promise<void> {
   console.log("[push] permission:", permission);
   if (permission !== "granted") throw new Error("Permiso de notificaciones denegado.");
 
-  const reg = await withTimeout(navigator.serviceWorker.ready, 30000, "service worker");
+  let reg: ServiceWorkerRegistration;
+  try {
+    reg = await withTimeout(navigator.serviceWorker.ready, 30000, "service worker");
+  } catch {
+    reg = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+  }
   console.log("[push] service worker ready, scope:", reg.scope);
   const subscription =
     (await reg.pushManager.getSubscription()) ||
