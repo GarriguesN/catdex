@@ -72,11 +72,16 @@ function MapPageInner() {
       }
       const results = await Promise.all(queries);
 
-      const enriched: MapMarkerData[] = [];
+      // One marker per cat, not per photo — keep only each cat's most
+      // recent geotagged photo (latest location + thumbnail).
+      const latestByCatId = new Map<string, MapMarkerData>();
       for (const result of results) {
         for (const p of result.items as any[]) {
           if (p.lat && p.lng) {
-            enriched.push({
+            const takenAt = new Date(p.created).getTime();
+            const existing = latestByCatId.get(p.cat);
+            if (existing && existing.takenAt >= takenAt) continue;
+            latestByCatId.set(p.cat, {
               id: p.id,
               catId: p.cat,
               catName: p.expand?.cat?.name || "Gato",
@@ -84,14 +89,14 @@ function MapPageInner() {
               photoId: p.id,
               lat: p.lat,
               lng: p.lng,
-              takenAt: new Date(p.created).getTime(),
+              takenAt,
               isOwn: p.user === myId,
               ownerName: p.user === myId ? undefined : p.expand?.user?.name || "Amigo",
             });
           }
         }
       }
-      enriched.sort((a, b) => b.takenAt - a.takenAt);
+      const enriched = [...latestByCatId.values()].sort((a, b) => b.takenAt - a.takenAt);
       setMarkers(enriched);
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load markers:", err);

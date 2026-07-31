@@ -47,12 +47,16 @@ export async function normalizePhoto(file: File): Promise<{
     blob = await canvasToBlob(canvas, "image/jpeg", 0.8);
   }
 
-  // Thumbnail 256x256
+  // Thumbnail 256x256 — center-crop to a square first so non-square photos
+  // aren't squished to fit, then resize the crop into the canvas.
   const thumbCanvas = document.createElement("canvas");
   thumbCanvas.width = 256;
   thumbCanvas.height = 256;
   const thumbCtx = thumbCanvas.getContext("2d")!;
-  thumbCtx.drawImage(img, 0, 0, 256, 256);
+  const cropSize = Math.min(img.width, img.height);
+  const cropX = (img.width - cropSize) / 2;
+  const cropY = (img.height - cropSize) / 2;
+  thumbCtx.drawImage(img, cropX, cropY, cropSize, cropSize, 0, 0, 256, 256);
   let thumbBlob = await canvasToBlob(thumbCanvas, "image/webp", 0.7);
   if (!thumbBlob || thumbBlob.type !== "image/webp") {
     thumbBlob = await canvasToBlob(thumbCanvas, "image/jpeg", 0.7);

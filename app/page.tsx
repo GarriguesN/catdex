@@ -27,7 +27,7 @@ interface Cat {
 }
 
 type Filter = "all" | "favorites" | "recent";
-type SortMode = "recent" | "photos" | "alpha";
+type SortMode = "recent" | "captureOrder" | "photos" | "alpha";
 type View = "mine" | "friends";
 
 const RECENT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
@@ -179,6 +179,7 @@ export default function CollectionPage() {
       .sort((a, b) => {
         switch (sort) {
           case "recent": return b.lastSeen - a.lastSeen;
+          case "captureOrder": return a.createdAt - b.createdAt;
           case "photos": return b.photoCount - a.photoCount;
           case "alpha": return a.name.localeCompare(b.name);
         }
@@ -310,6 +311,7 @@ export default function CollectionPage() {
           {(
             [
               ["recent", "Más recientes"],
+              ["captureOrder", "Orden de captura"],
               ["photos", "Más fotos"],
               ["alpha", "Nombre (A–Z)"],
             ] as [SortMode, string][]

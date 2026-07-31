@@ -38,6 +38,8 @@ export interface ClassificationResult {
   confidence: number; // 0-100
   quality: "good" | "blurry" | "not_cat" | "low_confidence";
   message?: string;
+  /** All raw detections (class + score%), most confident first — debug only. */
+  detections?: { class: string; score: number }[];
 }
 
 // A "cat" detection below this score is too weak to trust outright — ask for
@@ -107,6 +109,7 @@ export async function classifyPhoto(
       sorted.map((d: any) => `${d.class} (${(d.score * 100).toFixed(1)}%)`)
     );
 
+    const debugDetections = sorted.map((d: any) => ({ class: d.class, score: Math.round(d.score * 1000) / 10 }));
     const catDetections = sorted.filter((d: any) => d.class === "cat");
 
     if (catDetections.length === 0) {
@@ -123,6 +126,7 @@ export async function classifyPhoto(
           confidence: 0,
           quality: "not_cat",
           message: pickRandom(POKEDEX_MESSAGES.not_cat),
+          detections: debugDetections,
         };
       }
       return {
@@ -131,6 +135,7 @@ export async function classifyPhoto(
         confidence,
         quality: "not_cat",
         message: POKEDEX_MESSAGES.not_cat_hard.replace(/\{class\}/g, best.class),
+        detections: debugDetections,
       };
     }
 
@@ -146,6 +151,7 @@ export async function classifyPhoto(
         confidence,
         quality: "low_confidence",
         message: pickRandom(POKEDEX_MESSAGES.low_confidence),
+        detections: debugDetections,
       };
     }
 
@@ -155,6 +161,7 @@ export async function classifyPhoto(
       topClass: "cat",
       confidence,
       quality: "good",
+      detections: debugDetections,
     };
   } catch (err) {
     console.warn("[classifier] coco-ssd detection threw — failing open:", err);

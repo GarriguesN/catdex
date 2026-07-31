@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Bell, Volume2, Lock, FileUp, Info } from "lucide-react";
+import { User, Bell, Volume2, Lock, FileUp, Info, Bug } from "lucide-react";
 import { TopBar } from "@/components/ui/TopBar";
 import { SettingsGroup, SettingsRow } from "@/components/ui/SettingsRow";
 import { areSoundsEnabled } from "@/lib/sound-prefs";
@@ -40,6 +40,7 @@ export default function SettingsPage() {
           value={APP_VERSION}
           href="/settings/about"
         />
+        <SettingsRow icon={<Bug className="h-5 w-5" />} label="Modo debug" href="/settings/debug" />
       </SettingsGroup>
     </div>
   );

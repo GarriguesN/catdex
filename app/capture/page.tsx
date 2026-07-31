@@ -2,17 +2,18 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { X, Zap, ZapOff, Image as ImageIcon, SwitchCamera, Camera, Upload } from "lucide-react";
+import { X, Zap, ZapOff, SwitchCamera, Camera, ZoomIn } from "lucide-react";
 import clsx from "clsx";
 import { normalizePhoto, blurScore, getImageData } from "@/lib/image";
 import { openCamera, captureFrame, isCameraAvailable, setTorch } from "@/lib/camera";
 import { generateCatName } from "@/lib/names";
 import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
 import { reverseGeocode } from "@/lib/geo";
-import { classifyPhoto, preloadClassifier } from "@/lib/classifier";
+import { classifyPhoto, preloadClassifier, type ClassificationResult } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { playShutterSound } from "@/lib/sounds";
+import { isDebugCameraEnabled } from "@/lib/debug-prefs";
 import { CatPicker } from "@/components/CatPicker";
 import { BlurCheckScreen } from "@/components/capture/BlurCheckScreen";
 import { DetectingScreen } from "@/components/capture/DetectingScreen";
@@ -21,10 +22,30 @@ import { SavedScreen } from "@/components/capture/SavedScreen";
 
 type Screen = "camera" | "blur" | "detecting" | "notcat" | "saved";
 
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 4;
+const ZOOM_PRESETS = [1, 2, 3];
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(Math.max(v, min), max);
+}
+
+function touchDistance(touches: React.TouchList): number {
+  const a = touches[0];
+  const b = touches[1];
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+interface DebugInfo {
+  size: string;
+  blurScore: number;
+  decision: string;
+  classifier?: ClassificationResult;
+}
+
 export default function CapturePage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [hasStream, setHasStream] = useState(false);
   const [cameraError, setCameraError] = useState(false);
@@ -41,6 +62,9 @@ export default function CapturePage() {
   const [suggestedIds, setSuggestedIds] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [debugEnabled, setDebugEnabled] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
 
   const pendingBlobRef = useRef<Blob | null>(null);
   const pendingThumbBlobRef = useRef<Blob | null>(null);
@@ -48,6 +72,16 @@ export default function CapturePage() {
   const positionRef = useRef<{ lat: number; lng: number } | null>(null);
   const cityPromiseRef = useRef<Promise<string> | null>(null);
   const savingRef = useRef(false);
+  const zoomRef = useRef(1);
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    setDebugEnabled(isDebugCameraEnabled());
+  }, []);
 
   // ── Camera lifecycle ──
 
@@ -119,6 +153,31 @@ export default function CapturePage() {
     await setTorch(streamRef.current, next);
   }
 
+  // ── Zoom: pinch gesture + cycling button ──
+
+  function cycleZoom() {
+    const next = ZOOM_PRESETS.find((p) => p > zoomRef.current + 0.05) ?? ZOOM_PRESETS[0];
+    setZoom(next);
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (e.touches.length === 2) {
+      pinchRef.current = { startDist: touchDistance(e.touches), startZoom: zoomRef.current };
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault();
+      const scale = touchDistance(e.touches) / pinchRef.current.startDist;
+      setZoom(clamp(pinchRef.current.startZoom * scale, ZOOM_MIN, ZOOM_MAX));
+    }
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length < 2) pinchRef.current = null;
+  }
+
   // ── Capture ──
 
   const doCapture = useCallback(async () => {
@@ -131,7 +190,7 @@ export default function CapturePage() {
         `[camera] capturing frame: videoTime=${v.currentTime.toFixed(2)}s readyState=${v.readyState}` +
           ` paused=${v.paused} size=${v.videoWidth}x${v.videoHeight}`
       );
-      const canvas = captureFrame(v);
+      const canvas = captureFrame(v, zoomRef.current);
       const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), "image/jpeg", 0.9));
       await processCapture(blob);
     } finally {
@@ -139,23 +198,12 @@ export default function CapturePage() {
     }
   }, [capturing]);
 
-  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCapturing(true);
-    try {
-      await processCapture(file);
-    } finally {
-      setCapturing(false);
-      e.target.value = "";
-    }
-  }, []);
-
   // ── Pipeline: normalize → blur check → coco-ssd detection → pHash + picker ──
 
   async function processCapture(file: Blob) {
     const captureId = Math.random().toString(36).slice(2, 8);
     console.log(`[capture:${captureId}] source blob: ${file.type}, ${file.size} bytes`);
+    setDebugInfo(null);
 
     // 1. Normalize
     const { blob, thumbBlob } = await normalizePhoto(new File([file], "capture.jpg", { type: file.type || "image/jpeg" }));
@@ -183,6 +231,7 @@ export default function CapturePage() {
     if (bv < 50) {
       console.log(`[capture:${captureId}] rejected: blurry`);
       setBlurCopy(getBlurCopy());
+      setDebugInfo({ size: `${img.width}x${img.height}`, blurScore: bv, decision: "blurry" });
       setScreen("blur");
       return;
     }
@@ -196,11 +245,13 @@ export default function CapturePage() {
       console.log(`[capture:${captureId}] rejected: not_cat`);
       setNotCatCopy(getNotCatCopy(result.topClass, result.confidence));
       setIsSpecificAnimal(isKnownAnimal(result.topClass, result.confidence));
+      setDebugInfo({ size: `${img.width}x${img.height}`, blurScore: bv, decision: "not_cat", classifier: result });
       setScreen("notcat");
       return;
     }
 
     console.log(`[capture:${captureId}] accepted, proceeding to pHash + picker`);
+    setDebugInfo({ size: `${img.width}x${img.height}`, blurScore: bv, decision: result.quality, classifier: result });
     // 4. pHash + picker
     await finalizeCapture(imageData);
   }
@@ -347,6 +398,7 @@ export default function CapturePage() {
     setScreen("camera");
     setPreviewUrl(null);
     setShowPicker(false);
+    setDebugInfo(null);
     pendingBlobRef.current = null;
     pendingThumbBlobRef.current = null;
     pendingHashRef.current = "";
@@ -370,14 +422,20 @@ export default function CapturePage() {
   return (
     <>
       {/* Full-screen camera */}
-      <div className="fixed inset-0 z-40 bg-black flex flex-col">
+      <div
+        className="fixed inset-0 z-40 bg-black flex flex-col"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {hasStream ? (
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted
-            className={clsx("absolute inset-0 w-full h-full object-cover", facing === "user" && "scale-x-[-1]")}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ transform: `${facing === "user" ? "scaleX(-1) " : ""}scale(${zoom})` }}
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 bg-[#1a1a1a]">
@@ -390,12 +448,6 @@ export default function CapturePage() {
                 Reintentar cámara
               </button>
             )}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white active:bg-white/10"
-            >
-              <Upload className="h-4 w-4" /> Subir foto
-            </button>
           </div>
         )}
 
@@ -451,11 +503,12 @@ export default function CapturePage() {
           style={{ paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))" }}
         >
           <button
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Abrir galería"
-            className="w-12 h-12 rounded-2xl bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
+            onClick={cycleZoom}
+            aria-label="Cambiar zoom"
+            className="w-12 h-12 rounded-2xl bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white active:scale-90 transition-transform gap-0.5"
           >
-            <ImageIcon className="h-5.5 w-5.5" />
+            <ZoomIn className="h-4 w-4" />
+            <span className="text-[0.6875rem] font-semibold leading-none">{zoom.toFixed(1)}×</span>
           </button>
 
           <button
@@ -475,8 +528,6 @@ export default function CapturePage() {
             <SwitchCamera className="h-5.5 w-5.5" />
           </button>
         </div>
-
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
       </div>
 
       {/* Pipeline overlays */}
@@ -519,6 +570,30 @@ export default function CapturePage() {
       {saving && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center">
           <div className="w-12 h-12 border-4 border-catdex-orange border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Debug overlay — settings > Modo debug */}
+      {debugEnabled && debugInfo && (
+        <div
+          className="fixed left-3 right-3 z-[70] rounded-xl bg-black/75 backdrop-blur-sm px-3 py-2 text-white font-mono text-[0.6875rem] leading-relaxed"
+          style={{ bottom: "max(10rem, calc(10rem + env(safe-area-inset-bottom)))" }}
+        >
+          <p>size={debugInfo.size} blur={debugInfo.blurScore.toFixed(1)} decision={debugInfo.decision}</p>
+          {debugInfo.classifier && (
+            <>
+              <p>
+                cat={debugInfo.classifier.isCat ? "sí" : "no"} confidence={debugInfo.classifier.confidence.toFixed(1)}%
+                quality={debugInfo.classifier.quality}
+              </p>
+              {debugInfo.classifier.detections && debugInfo.classifier.detections.length > 0 && (
+                <p className="truncate">
+                  detections=
+                  {debugInfo.classifier.detections.map((d) => `${d.class}(${d.score}%)`).join(", ")}
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
     </>
