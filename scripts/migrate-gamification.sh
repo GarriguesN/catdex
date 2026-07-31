@@ -194,7 +194,7 @@ else
     ],
     \"listRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\",
     \"viewRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\",
-    \"createRule\": \"@request.auth.id != '' && challenger = @request.auth.id\",
+    \"createRule\": \"@request.auth.id != ''\",
     \"updateRule\": null,
     \"deleteRule\": \"@request.auth.id != '' && (challenger = @request.auth.id || opponent = @request.auth.id)\"
   }" | python3 -c "import sys,json; print('  duels:', json.load(sys.stdin).get('id','ERR'))"
