@@ -42,11 +42,12 @@ onRecordAfterCreateSuccess((e) => {
           user.set("score", (user.get("score") || 0) + points);
 
           // Streak: same day as last capture = unchanged, next day = +1,
-          // any gap = reset to 1.
-          const today = todayStr();
+          // any gap = reset to 1. Compute before transaction (outer scope).
+          const today = new Date().toISOString().slice(0, 10);
+          const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
           const lastDate = user.get("lastCaptureDate") || "";
           if (lastDate !== today) {
-            const streak = lastDate === yesterdayStr() ? (user.get("currentStreak") || 0) + 1 : 1;
+            const streak = lastDate === yesterday ? (user.get("currentStreak") || 0) + 1 : 1;
             user.set("currentStreak", streak);
             user.set("lastCaptureDate", today);
           }
