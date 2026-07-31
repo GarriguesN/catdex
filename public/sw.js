@@ -1,14 +1,8 @@
-// CatDex Service Worker — simple cache-first for shell, network-first for pages
-const CACHE_NAME = "catdex-v3";
+// CatDex Service Worker — cache-first for assets, network-first for pages
+const CACHE_NAME = "catdex-v3.2";
 
 const STATIC_ASSETS = [
   "/",
-  "/capture",
-  "/cat",
-  "/map",
-  "/profile",
-  "/friends",
-  "/settings",
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
@@ -31,26 +25,19 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Only handle GET requests
   if (event.request.method !== "GET") return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      // Try network, fall back to cache
-      return fetch(event.request)
-        .then((response) => {
-          // Cache successful responses
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) =>
-              cache.put(event.request, clone)
-            );
-          }
-          return response;
-        })
-        .catch(() => cached || new Response("Offline", { status: 503 }))
-    })
-  );
+  // Only cache static assets, not API calls or dynamic pages
+  const url = new URL(event.request.url);
+  const isStaticAsset = STATIC_ASSETS.includes(url.pathname) || 
+    url.pathname.match(/\.(png|jpg|jpeg|webp|svg|ico|woff2?|ttf|css)$/);
+
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached || fetch(event.request))
+    );
+  }
+  // Dynamic pages: network-first (don't cache)
 });
 
 // ── Web Push ──
@@ -58,9 +45,7 @@ self.addEventListener("push", (event) => {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
-  } catch (_) {
-    // malformed payload — show a generic notification instead of failing silently
-  }
+  } catch (_) {}
   const title = data.title || "CatDex";
   event.waitUntil(
     self.registration.showNotification(title, {

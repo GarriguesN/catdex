@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.3",
+    date: "Julio 2026",
+    items: [
+      "Fix: notificaciones push ya no se quedan colgadas al activarlas (service worker timeout)",
+      "Fix: crear duelos ya no da error 400 (regla de validación corregida)",
+      "Service worker más ligero: ya no cachea páginas dinámicas en la instalación",
+    ],
+  },
+  {
     version: "1.3.2",
     date: "Julio 2026",
     items: [
