@@ -8,6 +8,32 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.0",
+    date: "Agosto 2026",
+    items: [
+      "Nueva pestaña Competición: ranking, duelos y rachas en un solo lugar",
+      "Perfiles de amigos: visita el perfil de cualquier amigo y ve su colección",
+      "Descubridor visible: cada gato muestra quién lo encontró primero",
+      "Feed principal rediseñado con actividad de toda la colonia",
+      "Navegación inferior reorganizada con sección social dedicada",
+    ],
+  },
+  {
+    version: "1.2.0",
+    date: "Agosto 2026",
+    items: [
+      "Gamificación completa: rachas diarias, logros instantáneos, ranking semanal entre amigos",
+      "Duelos 1 contra 1: desafía a un amigo a ver quién captura más gatos en 24h",
+      "Reacciones: deja un emoji en las capturas de tus amigos",
+      "Compartir: genera un enlace para que cualquiera vea un gato sin tener cuenta",
+      "Notificaciones push: recibe avisos de duelos, logros y rachas (Web Push + service worker)",
+      "Colonia compartida: todos tus amigos suman al mismo mapa colaborativo",
+      "Tests unitarios con Vitest: ranking, duelos, logros, reacciones, discovery",
+      "Postal de descubrimiento: al atrapar un gato nuevo se genera una postal para compartir",
+      "Scroll parallax en la ficha de cada gato con foto hero",
+    ],
+  },
+  {
     version: "1.1.0",
     date: "Julio 2026",
     items: [
