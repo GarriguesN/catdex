@@ -162,7 +162,7 @@ function MapPageInner() {
               <div className="w-16 h-16 rounded-2xl overflow-hidden bg-catdex-input-bg flex items-center justify-center text-2xl shrink-0">
                 {selectedThumb ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selectedThumb} alt="" className="w-full h-full object-contain" />
+                  <img src={selectedThumb} alt="" className="w-full h-full object-cover" />
                 ) : (
                   "🐾"
                 )}
@@ -212,7 +212,7 @@ function MapPageInner() {
                     <div className="w-12 h-12 rounded-xl overflow-hidden bg-catdex-input-bg flex items-center justify-center text-xl shrink-0">
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb} alt="" className="w-full h-full object-contain" />
+                        <img src={thumb} alt="" className="w-full h-full object-cover" />
                       ) : (
                         "🐾"
                       )}

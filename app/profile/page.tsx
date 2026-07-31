@@ -371,7 +371,7 @@ export default function ProfilePage() {
                       </div>
                       {item.thumbUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.thumbUrl} alt="" className="w-12 h-12 rounded-xl bg-catdex-input-bg object-contain shrink-0" />
+                        <img src={item.thumbUrl} alt="" className="w-12 h-12 rounded-xl bg-catdex-input-bg object-cover shrink-0" />
                       )}
                     </Link>
                   ) : (

@@ -444,7 +444,7 @@ function CatDetailInner() {
                   onClick={() => scrollToPhoto(i)}
                   aria-label={`Ver foto ${i + 1}`}
                   className={clsx(
-                    "relative shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-catdex-input-bg transition-all active:scale-95",
+                    "relative shrink-0 w-14 h-14 rounded-xl bg-catdex-input-bg transition-all active:scale-95",
                     i === photoIndex
                       ? "ring-2 ring-catdex-orange ring-offset-2 ring-offset-catdex-cream"
                       : "opacity-70"
@@ -452,7 +452,7 @@ function CatDetailInner() {
                 >
                   {thumb && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" className="w-full h-full object-contain" loading="lazy" />
+                    <img src={thumb} alt="" className="w-full h-full object-cover rounded-xl" loading="lazy" />
                   )}
                 </button>
               );

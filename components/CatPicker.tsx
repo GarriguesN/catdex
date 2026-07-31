@@ -125,7 +125,7 @@ export function CatPicker({ suggestedIds, onSelect, onCancel }: CatPickerProps) 
                 <div className="w-13 h-13 min-w-[3.25rem] min-h-[3.25rem] rounded-2xl overflow-hidden bg-catdex-input-bg flex items-center justify-center text-xl">
                   {cat.thumbUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cat.thumbUrl} alt="" className="w-full h-full object-contain" />
+                    <img src={cat.thumbUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     "🐱"
                   )}
