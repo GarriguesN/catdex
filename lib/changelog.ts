@@ -8,27 +8,17 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "1.3.6",
+    version: "1.4.0",
     date: "Julio 2026",
     items: [
-      "Fix: notificaciones push ahora reintentan con registro explícito del SW si falla",
-      "Fix: timeout de SW aumentado a 30s con fallback de re-registro automático",
-    ],
-  },
-  {
-    version: "1.3.5",
-    date: "Julio 2026",
-    items: [
-      "Fix: timeout de notificaciones push aumentado de 8s a 30s para conexiones lentas",
-    ],
-  },
-  {
-    version: "1.3.3",
-    date: "Julio 2026",
-    items: [
-      "Fix: notificaciones push ya no se quedan colgadas al activarlas (service worker timeout)",
-      "Fix: crear duelos ya no da error 400 (regla de validación corregida)",
-      "Service worker más ligero: ya no cachea páginas dinámicas en la instalación",
+      "Notificaciones push funcionando: recibe avisos de duelos, logros y rachas aunque tengas la app cerrada",
+      "Botón de prueba de notificaciones en Ajustes para verificar que todo funciona",
+      "Service worker optimizado: instalación instantánea, sin caché innecesario",
+      "Fecha de captura visible en el modal del mapa al tocar un clúster",
+      "Imágenes con object-cover en toda la app: miniaturas, tarjetas y carrusel",
+      "Anillo naranja del thumbnail corregido: ya no se recorta arriba y abajo",
+      "Fix: crear duelos ya no da error 400 por la regla de validación",
+      "Fix: timeout de notificaciones aumentado y con reintento automático",
     ],
   },
   {
@@ -36,15 +26,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "Julio 2026",
     items: [
       "Mapa: al tocar un clúster se abre la lista de gatos en vez de solo hacer zoom",
-    ],
-  },
-  {
-    version: "1.3.1",
-    date: "Julio 2026",
-    items: [
-      "Thumbnails corregidos: las fotos ya no se estiran ni recortan mal en las tarjetas",
-      "Push notifications más robustas: manejo de errores de suscripción mejorado",
-      "Fix: crear duelos ya no falla con error 400 por la regla de validación",
     ],
   },
   {
@@ -66,7 +47,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Duelos 1 contra 1: desafía a un amigo a ver quién captura más gatos en 24h",
       "Reacciones: deja un emoji en las capturas de tus amigos",
       "Compartir: genera un enlace para que cualquiera vea un gato sin tener cuenta",
-      "Notificaciones push: recibe avisos de duelos, logros y rachas (Web Push + service worker)",
+      "Notificaciones push: recibe avisos de duelos, logros y rachas",
       "Colonia compartida: todos tus amigos suman al mismo mapa colaborativo",
       "Tests unitarios con Vitest: ranking, duelos, logros, reacciones, discovery",
       "Postal de descubrimiento: al atrapar un gato nuevo se genera una postal para compartir",
