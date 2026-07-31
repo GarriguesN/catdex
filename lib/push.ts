@@ -146,7 +146,10 @@ export async function sendTestNotification(): Promise<boolean> {
   try {
     const resp = await fetch("/api/push/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_PUSH_INTERNAL_SECRET || ""}`,
+      },
       body: JSON.stringify({
         subscription: sub.toJSON(),
         title: "¡Prueba de notificación!",

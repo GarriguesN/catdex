@@ -12,7 +12,9 @@ import webpush from "web-push";
  */
 export async function POST(req: NextRequest) {
   const secret = process.env.PUSH_INTERNAL_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  const pubSecret = process.env.NEXT_PUBLIC_PUSH_INTERNAL_SECRET;
+  const auth = req.headers.get("authorization");
+  if ((!secret || auth !== `Bearer ${secret}`) && (!pubSecret || auth !== `Bearer ${pubSecret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
