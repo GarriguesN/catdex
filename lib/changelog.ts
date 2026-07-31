@@ -8,6 +8,13 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.5",
+    date: "Julio 2026",
+    items: [
+      "Fix: timeout de notificaciones push aumentado de 8s a 30s para conexiones lentas",
+    ],
+  },
+  {
     version: "1.3.3",
     date: "Julio 2026",
     items: [
