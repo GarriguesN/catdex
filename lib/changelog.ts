@@ -8,6 +8,13 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.2",
+    date: "Julio 2026",
+    items: [
+      "Mapa: al tocar un clúster se abre la lista de gatos en vez de solo hacer zoom",
+    ],
+  },
+  {
     version: "1.3.1",
     date: "Julio 2026",
     items: [
