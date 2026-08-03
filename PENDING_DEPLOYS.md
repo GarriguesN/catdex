@@ -11,6 +11,7 @@ Cambios de cliente acumulados pendientes de rebuild:
 | Commit | Archivos | Por qué |
 |---|---|---|
 | 0f99147 | lib/duels.ts | Fallback frozen/legacy en listMyDuels |
+| (1.5)  | lib/duels.ts, lib/ranking.ts, app/competition/page.tsx | $autoCancel:false en duels y ranking; getWeeklyRanking acepta friends; authRefresh del propio user; UI "ranking en preparación" |
 
 Procedimiento cuando se decida ejecutar el rebuild:
 1. Build local: `cd /root/catdex && npm run build`

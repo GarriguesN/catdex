@@ -82,6 +82,10 @@ vi.mock("./pocketbase", () => ({
     },
     collection: () => ({
       getFullList: vi.fn().mockResolvedValue(mockSnapshots),
+      // Fase 1.5 — getWeeklyRanking calls authRefresh() to pull a fresh
+      // score for *me* before computing the deltas. Resolves with the
+      // current authStore.record unchanged so tests are deterministic.
+      authRefresh: vi.fn().mockResolvedValue(undefined),
     }),
   }),
 }));
@@ -130,5 +134,38 @@ describe("getWeeklyRanking", () => {
     const result = await getWeeklyRanking();
     expect(result).toHaveLength(1);
     expect(result[0].userId).toBe("me");
+  });
+
+  // Fase 1.5 — hasSnapshot distinguishes "0 earned this week" from
+  // "no snapshot yet, ranking in preparation".
+  it("marks hasSnapshot=true for users with a snapshot this week", async () => {
+    mockFriends = [{ friend: { id: "friend4", name: "Sara", avatar: "", score: 60 } }];
+    mockSnapshots = [
+      { user: "me", score: 100 },     // me: 200 - 100 = 100
+      { user: "friend4", score: 40 }, // friend4: 60 - 40 = 20
+    ];
+    const result = await getWeeklyRanking();
+    expect(result.every((r) => r.hasSnapshot)).toBe(true);
+  });
+
+  it("marks hasSnapshot=false for users with no snapshot this week", async () => {
+    mockFriends = [{ friend: { id: "friend5", name: "Tom", avatar: "", score: 30 } }];
+    mockSnapshots = [{ user: "me", score: 100 }]; // only me has a snapshot
+    const result = await getWeeklyRanking();
+    const tom = result.find((r) => r.userId === "friend5");
+    const me = result.find((r) => r.userId === "me");
+    expect(tom?.hasSnapshot).toBe(false);
+    expect(me?.hasSnapshot).toBe(true);
+  });
+
+  // Fase 1.5 — getWeeklyRanking accepts a cached friends list to skip the
+  // internal listFriends() call. We verify this by spying on the mock.
+  it("does not call listFriends when a cached friends list is provided", async () => {
+    const friendsSpy = vi.fn().mockResolvedValue([]);
+    // Re-mock friends module for this single test
+    vi.doMock("./friends", () => ({ listFriends: friendsSpy }));
+    const { getWeeklyRanking: freshGet } = await import("./ranking");
+    await freshGet([{ friendshipId: "f1", friend: { id: "friend6", name: "Luz", avatar: "", score: 0 } }]);
+    expect(friendsSpy).not.toHaveBeenCalled();
   });
 });

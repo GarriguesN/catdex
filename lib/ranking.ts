@@ -7,7 +7,7 @@
  */
 
 import { getPocketBase } from "./pocketbase";
-import { listFriends } from "./friends";
+import { listFriends, type FriendEntry } from "./friends";
 
 /** UTC date key ("YYYY-MM-DD") of the Monday of the week containing `date`. */
 export function weekMondayKey(date: Date): string {
@@ -40,20 +40,40 @@ export interface WeeklyRankEntry {
   avatar: string;
   weeklyScore: number;
   isMe: boolean;
+  /** True if this user has a weekly_snapshots row for the current week.
+   *  Used by the UI to distinguish "0 points earned" from "no snapshot
+   *  yet, ranking is being prepared" (Fase 1.5). */
+  hasSnapshot: boolean;
 }
 
 /** You + your accepted friends, ranked by points gained since this week's
  * Monday snapshot. Anyone without a snapshot yet (first week after this
  * feature shipped, before the Monday cron has run once) shows 0 — known,
- * documented limitation, same pattern as pre-migration photos with no city. */
-export async function getWeeklyRanking(): Promise<WeeklyRankEntry[]> {
+ * documented limitation, same pattern as pre-migration photos with no city.
+ *
+ * @param cachedFriends optional list of friends to avoid re-fetching when the
+ *   caller (e.g. /competition page) already has them. Saves one round-trip
+ *   per page load (Fase 1.5).
+ */
+export async function getWeeklyRanking(cachedFriends?: FriendEntry[]): Promise<WeeklyRankEntry[]> {
   const pb = getPocketBase();
   const me = pb.authStore.record;
   if (!me) return [];
 
-  const friends = await listFriends();
+  // Pull a fresh score for *me* alongside the ranking fetch — without this,
+  // my own score is stale until the next capture or profile edit, while my
+  // friends' scores come fresh from the expand. The delta would be off
+  // until I touch the app (Fase 1.5).
+  try {
+    await pb.collection("users").authRefresh();
+  } catch (_) {
+    // refresh is best-effort — ranking still works with the cached score
+  }
+
+  const friends = cachedFriends ?? (await listFriends());
+  const meFresh = pb.authStore.record ?? me;
   const people = [
-    { id: me.id, name: me.name, avatar: me.avatar, score: me.score || 0 },
+    { id: meFresh.id, name: meFresh.name, avatar: meFresh.avatar, score: meFresh.score || 0 },
     ...friends.map((f) => ({ id: f.friend.id, name: f.friend.name, avatar: f.friend.avatar, score: f.friend.score || 0 })),
   ];
 
@@ -62,6 +82,9 @@ export async function getWeeklyRanking(): Promise<WeeklyRankEntry[]> {
   const snapshots = await pb.collection("weekly_snapshots").getFullList({
     filter: `weekKey="${weekKey}" && (${idsFilter})`,
     fields: "user,score",
+    $autoCancel: false, // see lib/friends.ts:79 — useRefetchOnFocus can fire
+                        // while this query is in flight, causing PB to cancel
+                        // and the catch to swallow an empty section.
   });
   const snapshotByUser = new Map(snapshots.map((s: any) => [s.user, s.score]));
 
@@ -71,7 +94,8 @@ export async function getWeeklyRanking(): Promise<WeeklyRankEntry[]> {
       name: p.name || "",
       avatar: p.avatar || "",
       weeklyScore: computeWeeklyDelta(p.score, snapshotByUser.get(p.id) ?? p.score),
-      isMe: p.id === me.id,
+      isMe: p.id === meFresh.id,
+      hasSnapshot: snapshotByUser.has(p.id),
     }))
     .sort((a, b) => b.weeklyScore - a.weeklyScore);
 }

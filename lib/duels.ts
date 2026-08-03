@@ -40,6 +40,9 @@ export async function listMyDuels(): Promise<DuelEntry[]> {
     filter: `challenger="${me}" || opponent="${me}"`,
     expand: "challenger,opponent",
     sort: "-created",
+    $autoCancel: false, // see lib/friends.ts:79 — useRefetchOnFocus can fire
+                        // while this query is in flight, causing PB to cancel
+                        // and the .catch to swallow an empty duels section.
   });
 
   return rows.map((r: any) => {

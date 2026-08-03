@@ -34,12 +34,15 @@ export default function CompetitionPage() {
 
   const load = useCallback(async () => {
     try {
-      const [f, ranking, myDuels] = await Promise.all([
-        listFriends().catch(() => []),
-        getWeeklyRanking().catch(() => []),
+      const f = await listFriends().catch(() => []);
+      setFriends(f);
+      // Single listFriends() now feeds both the friends list and the ranking
+      // — getWeeklyRanking accepts the cached list to skip the internal
+      // fetch it used to do (Fase 1.5).
+      const [ranking, myDuels] = await Promise.all([
+        getWeeklyRanking(f).catch(() => []),
         listMyDuels().catch(() => []),
       ]);
-      setFriends(f);
       setWeeklyRanking(ranking);
       setDuels(myDuels);
     } catch (err) {
@@ -109,6 +112,14 @@ export default function CompetitionPage() {
             {weeklyRanking.length === 0 ? (
               <p className="text-sm text-catdex-text-muted px-1">
                 Añade amigos para ver aquí el ranking semanal
+              </p>
+            ) : weeklyRanking.every((e) => !e.hasSnapshot) ? (
+              // No snapshot yet for anyone this week — show the prep message
+              // instead of a list of zeros that would look like the app is
+              // broken. With Fase 1.1 (auto-reparable daily cron) this only
+              // happens in the first ~5 min after Monday 00:00 UTC.
+              <p className="text-sm text-catdex-text-muted px-1">
+                Ranking en preparación · empieza el lunes
               </p>
             ) : (
               <div className="space-y-2.5">
