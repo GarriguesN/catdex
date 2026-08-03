@@ -7,47 +7,40 @@
  *
  * Blocked fields (must only be written by hooks like scoring.pb.js,
  * achievements-utils.js, the future contracts/cron hooks, etc.):
- *   - score
- *   - photoCount
- *   - currentStreak
- *   - bestStreak
- *   - lastCaptureDate
+ *   - score, photoCount, currentStreak, bestStreak, lastCaptureDate
  *
- * Allowed fields (user-editable via /profile/edit, etc.):
- *   - name, avatar, emailVisibility, inviteCode, verified (admin-only),
- *     and any future profile-only fields the product adds.
+ * Implementation note (PocketBase 0.23.x): inside onRecordUpdateRequest,
+ * e.record already carries the MERGED values — the new ones from the
+ * client have already replaced the old. To detect what the user is trying
+ * to change, we re-read the original from the DB and compare.
  *
- * Superusers are exempt (they need to be able to fix bad data via admin UI).
+ * Superusers bypass the check (admin UI needs to fix bad data).
+ * Internal txApp.save() in scoring.pb.js etc. does NOT fire this hook
+ * (it's HTTP-only), so game logic is unaffected.
  */
 onRecordUpdateRequest((e) => {
-  // Superusers can update anything.
   if (e.auth.isSuperuser()) {
     e.next();
     return;
   }
 
-  const protectedFields = [
-    "score",
-    "photoCount",
-    "currentStreak",
-    "bestStreak",
-    "lastCaptureDate",
-  ];
+  var protectedFields = ["score", "photoCount", "currentStreak", "bestStreak", "lastCaptureDate"];
 
-  // e.requestInfo().body is the parsed JSON the client is trying to set.
-  // For each protected field, if the new value differs from the current
-  // record value, reject the update with a precise error.
-  const body = e.requestInfo().body || {};
-  for (const field of protectedFields) {
-    if (!(field in body)) continue; // field not in payload — not being updated
-    const current = e.record.get(field);
-    const incoming = body[field];
-    // Compare as numbers (PocketBase returns 0 for unset number fields, not
-    // null, so a strict !== works for "0 vs 0" and "10 vs 10").
-    if (current !== incoming) {
+  var original;
+  try {
+    original = $app.findRecordById("users", e.record.id);
+  } catch (err) {
+    throw new BadRequestError("users-guard: no se pudo leer el registro original: " + String(err));
+  }
+
+  for (var i = 0; i < protectedFields.length; i++) {
+    var field = protectedFields[i];
+    var oldVal = original.get(field);
+    var newVal = e.record.get(field);
+    if (oldVal !== newVal) {
       throw new BadRequestError(
         "El campo '" + field + "' solo puede ser modificado por el servidor. " +
-        "Si crees que falta algo, abre un bug en https://github.com/GarriguesN/catdex/issues"
+        "Si crees que falta algo, abre un issue en github.com/GarriguesN/catdex."
       );
     }
   }
