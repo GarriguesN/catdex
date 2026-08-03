@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -82,17 +82,88 @@ function clusterize(markers: MapMarkerData[], zoom: number): Cluster[] {
   return [...grid.values()];
 }
 
-function FitBounds({ markers }: { markers: MapMarkerData[] }) {
+const VIEW_STORAGE_KEY = "catdex:map-view";
+
+/**
+ * Keeps Leaflet's internal size in sync with the container. On mobile the
+ * 100dvh container resizes constantly (URL bar collapse, safe-area insets,
+ * bottom nav appearing) — without invalidateSize() the tile layer keeps its
+ * old dimensions and the map renders gray/distorted until you pinch it.
+ */
+function MapResizer() {
   const map = useMap();
   useEffect(() => {
+    const el = map.getContainer();
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
+    // First paint can land before the layout settles — one extra pass on the
+    // next frame catches container size changes that happened at mount time.
+    const raf = requestAnimationFrame(() => map.invalidateSize());
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [map]);
+  return null;
+}
+
+/**
+ * Remembers the user's center+zoom across visits and restores it on remount
+ * (tab switches, back navigation) instead of always re-fitting to all
+ * markers — that refit-on-every-load is what made the map "jump" and lose
+ * the area the user was looking at.
+ *
+ * - Mount: restore saved view if one exists, otherwise fitBounds once.
+ * - `fitKey` change (new cat filter / friends toggle): refit to the new
+ *   dataset — that's an explicit user action, so centering is expected.
+ * - moveend: persist the current view.
+ */
+function MapViewPersist({ markers, fitKey }: { markers: MapMarkerData[]; fitKey: string }) {
+  const map = useMap();
+  const didInitRef = useRef(false);
+  const lastFitKeyRef = useRef(fitKey);
+
+  useEffect(() => {
     if (markers.length === 0) return;
-    if (markers.length === 1) {
-      map.setView([markers[0].lat, markers[0].lng], 15);
-      return;
+
+    const savedRaw = sessionStorage.getItem(VIEW_STORAGE_KEY);
+    if (!didInitRef.current && savedRaw) {
+      try {
+        const saved = JSON.parse(savedRaw) as { lat: number; lng: number; zoom: number };
+        if (typeof saved.lat === "number" && typeof saved.lng === "number" && typeof saved.zoom === "number") {
+          map.setView([saved.lat, saved.lng], saved.zoom);
+          didInitRef.current = true;
+          return;
+        }
+      } catch {
+        // corrupted entry — fall through to fitBounds
+      }
     }
-    const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number]));
-    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-  }, [markers, map]);
+
+    // First visit, no saved view, or the dataset changed on purpose.
+    if (!didInitRef.current || lastFitKeyRef.current !== fitKey) {
+      if (markers.length === 1) {
+        map.setView([markers[0].lat, markers[0].lng], 15);
+      } else {
+        const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number]));
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+      }
+      didInitRef.current = true;
+      lastFitKeyRef.current = fitKey;
+    }
+  }, [markers, fitKey, map]);
+
+  useEffect(() => {
+    const save = () => {
+      const c = map.getCenter();
+      sessionStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
+    };
+    map.on("moveend", save);
+    return () => {
+      map.off("moveend", save);
+    };
+  }, [map]);
+
   return null;
 }
 
@@ -156,10 +227,13 @@ export default function LeafletMap({
   markers,
   onMarkerClick,
   onClusterClick,
+  fitKey,
 }: {
   markers: MapMarkerData[];
   onMarkerClick: (m: MapMarkerData) => void;
   onClusterClick: (items: MapMarkerData[]) => void;
+  /** Changes when the dataset changes on purpose (cat filter, friends toggle) → refit. */
+  fitKey?: string;
 }) {
   if (markers.length === 0) return null;
 
@@ -175,7 +249,8 @@ export default function LeafletMap({
       attributionControl={false}
     >
       <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-      <FitBounds markers={markers} />
+      <MapResizer />
+      <MapViewPersist markers={markers} fitKey={fitKey ?? "all"} />
       <ClusteredMarkers markers={markers} onMarkerClick={onMarkerClick} onClusterClick={onClusterClick} />
     </MapContainer>
   );

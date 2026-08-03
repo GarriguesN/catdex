@@ -22,6 +22,13 @@ const LazyMap = dynamic(() => import("@/components/LeafletMap"), {
   ),
 });
 
+/**
+ * Module-level markers cache per dataset — returning to the Map tab renders
+ * instantly (no skeleton flash, no view jump) while a background refetch
+ * catches up in place.
+ */
+const markersCache = new Map<string, MapMarkerData[]>();
+
 function MapPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,7 +50,15 @@ function MapPageInner() {
   }, [filterCatId, showFriends]);
 
   async function loadMarkers() {
-    setLoading(true);
+    const cacheKey = `${filterCatId ?? "all"}|${showFriends}`;
+    const cached = markersCache.get(cacheKey);
+    if (cached) {
+      // Instant paint from cache — the refetch below replaces it in place.
+      setMarkers(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const pb = getPocketBase();
       const myId = pb.authStore.record?.id || "";
@@ -99,6 +114,7 @@ function MapPageInner() {
       }
       const enriched = [...latestByCatId.values()].sort((a, b) => b.takenAt - a.takenAt);
       setMarkers(enriched);
+      markersCache.set(cacheKey, enriched);
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load markers:", err);
     }
@@ -150,7 +166,12 @@ function MapPageInner() {
         // Note: isolate below contains Leaflet's internal pane z-indexes
         // (up to 600+) so they can't escape and render above fixed UI.
         <div className="relative isolate flex-1 rounded-3xl overflow-hidden shadow-soft">
-          <LazyMap markers={markers} onMarkerClick={setSelectedMarker} onClusterClick={setClusterCats} />
+          <LazyMap
+            markers={markers}
+            fitKey={`${filterCatId ?? "all"}|${showFriends}`}
+            onMarkerClick={setSelectedMarker}
+            onClusterClick={setClusterCats}
+          />
         </div>
       )}
 

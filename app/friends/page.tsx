@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Copy, Check, UserPlus, Trash2, X, RefreshCw, Users } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -35,12 +35,27 @@ import { Sheet, ConfirmDialog } from "@/components/ui/Sheet";
 import { FriendAvatar } from "@/components/friends/FriendAvatar";
 import { IncomingRequests } from "@/components/friends/IncomingRequests";
 
+/**
+ * Module-level cache — back navigation from a friend's profile remounts this
+ * page, and without the cache the user lands on skeletons at the top of the
+ * list. With it, the list paints instantly and the saved scroll position is
+ * restored, so they keep browsing exactly where they left off.
+ */
+let friendsCache: {
+  friends: FriendEntry[];
+  incoming: FriendEntry[];
+  outgoing: FriendEntry[];
+  colonyTotal: number | null;
+} | null = null;
+
+const SCROLL_KEY = "catdex:scroll:/friends";
+
 export default function FriendsPage() {
   const { user } = useRequireAuth();
-  const [friends, setFriends] = useState<FriendEntry[]>([]);
-  const [incoming, setIncoming] = useState<FriendEntry[]>([]);
-  const [outgoing, setOutgoing] = useState<FriendEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [friends, setFriends] = useState<FriendEntry[]>(friendsCache?.friends ?? []);
+  const [incoming, setIncoming] = useState<FriendEntry[]>(friendsCache?.incoming ?? []);
+  const [outgoing, setOutgoing] = useState<FriendEntry[]>(friendsCache?.outgoing ?? []);
+  const [loading, setLoading] = useState(friendsCache === null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Add-friend flow
@@ -57,8 +72,12 @@ export default function FriendsPage() {
 
   const load = useCallback(async () => {
     setRefreshing(true);
+    let f: FriendEntry[] = [];
+    let inc: FriendEntry[] = [];
+    let out: FriendEntry[] = [];
+    let total: number | null = null;
     try {
-      const [f, inc, out] = await Promise.all([
+      [f, inc, out] = await Promise.all([
         listFriends(),
         listPendingIncoming(),
         listPendingOutgoing(),
@@ -72,7 +91,7 @@ export default function FriendsPage() {
     // Independent try/catch — a colony hiccup shouldn't hide the core
     // friends list, which just loaded successfully above.
     try {
-      const total = await getColonyTotal();
+      total = await getColonyTotal();
       setColonyTotal(total);
       // Celebrate once per milestone, first time it's seen — not every load.
       const highest = highestMilestoneReached(total);
@@ -83,6 +102,7 @@ export default function FriendsPage() {
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load colony total:", err);
     }
+    friendsCache = { friends: f, incoming: inc, outgoing: out, colonyTotal: total };
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -94,6 +114,28 @@ export default function FriendsPage() {
   // Requests/accepts made from the other person's device won't push to this
   // tab — catch up whenever the user comes back to it.
   useRefetchOnFocus(load);
+
+  // Keep the scroll position across visits: save on unmount (tapping a
+  // friend → profile → back remounts this page) and restore once the
+  // content is on screen — instantly when served from cache, or after the
+  // first load when it isn't.
+  const scrollRestoredRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+    };
+  }, []);
+
+  useEffect(() => {
+    if (loading || scrollRestoredRef.current) return;
+    scrollRestoredRef.current = true;
+    const saved = sessionStorage.getItem(SCROLL_KEY);
+    if (!saved) return;
+    const y = parseInt(saved, 10);
+    if (Number.isFinite(y) && y > 0) {
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  }, [loading]);
 
   const myCode = getMyInviteCode();
 

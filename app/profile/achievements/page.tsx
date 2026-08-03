@@ -62,6 +62,9 @@ export default function AchievementsPage() {
             >
               <AchievementCircle badgeCode={key} locked={!isUnlocked} className="w-16 h-16" />
               <p className="text-[0.8125rem] font-semibold leading-tight">{def.name}</p>
+              <p className="text-[0.6875rem] text-catdex-text-muted leading-snug -mt-1">
+                {def.description}
+              </p>
               {isUnlocked && (
                 <p className="text-[0.6875rem] text-catdex-text-muted -mt-1">
                   {new Date(date).toLocaleDateString("es-ES", {

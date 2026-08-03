@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.4.1",
+    date: "Agosto 2026",
+    items: [
+      "Mapa: ya no se bugea al entrar y salir — recuerda la zona que estabas viendo y corrige el tamaño en móvil automáticamente",
+      "Mapa: vuelve al instante desde otras pestañas, sin recargar todo otra vez",
+      "Logros: cada insignia explica ahora cómo desbloquearla",
+      "Logros: se desbloquean al momento al poner nombre o añadir nota a un gato",
+      "Nuevos logros activados: Día de suerte, Mejor amigo, Obsesionado, Día de lluvia y Embajador",
+      "Amigos: al volver de ver un perfil, la lista se mantiene donde estabas (sin recargar ni subir arriba)",
+    ],
+  },
+  {
     version: "1.4.0",
     date: "Julio 2026",
     items: [

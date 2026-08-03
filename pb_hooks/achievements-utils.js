@@ -2,9 +2,8 @@
  * Shared achievement evaluation — require()d from achievements.pb.js handlers
  * (not auto-loaded: only *.pb.js files are executed by PocketBase).
  *
- * Ports the client-side conditions that previously lived in
- * app/settings/achievements/page.tsx. Only the badges whose data exists
- * today; the rest stay locked until their tracking is built.
+ * Recomputes the user's earned badges from live data and persists any new
+ * ones. All badges defined in lib/achievements-defs.ts are evaluated here.
  */
 
 module.exports = {
@@ -27,6 +26,27 @@ module.exports = {
       if (photos.length >= 500) earned.push("photographer_500");
       if (cats.some((c) => c.get("manuallyNamed"))) earned.push("namer");
       if (cats.some((c) => c.get("notes"))) earned.push("notekeeper");
+
+      // 3+ cats discovered on the same server-local day.
+      const dayCount = new Map();
+      cats.forEach((c) => {
+        const day = new Date(c.getString("created").replace(" ", "T")).toDateString();
+        dayCount.set(day, (dayCount.get(day) || 0) + 1);
+      });
+      if ([...dayCount.values()].some((n) => n >= 3)) earned.push("lucky_day");
+
+      // A single cat photographed 5/50+ times (photoCount maintained by scoring.pb.js).
+      if (cats.some((c) => (c.get("photoCount") || 0) >= 5)) earned.push("loyal_5");
+      if (cats.some((c) => (c.get("photoCount") || 0) >= 50)) earned.push("loyal_50");
+
+      // A cat note mentioning rain.
+      if (cats.some((c) => c.get("notes") && /lluvia|lloviendo|rain/i.test(c.get("notes")))) {
+        earned.push("rainy_day");
+      }
+
+      // First share link created (shares rows are written by shares.pb.js).
+      const share = txApp.findRecordsByFilter("shares", "sharedBy = {:u}", "", 1, 0, { u: userId });
+      if (share.length >= 1) earned.push("share_first");
 
       // Server-local hours (UTC on the deployed instance) — a photo taken at
       // 23:30 CEST counts as 21:30. Acceptable drift for a fun badge.

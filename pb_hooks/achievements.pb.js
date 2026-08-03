@@ -24,3 +24,16 @@ onRecordAfterCreateSuccess((e) => {
   }
   e.next();
 }, "cats");
+
+// ═══ onRecordAfterUpdateSuccess for cats ═══
+// Renaming a cat or adding notes unlocks namer/notekeeper/rainy_day — a
+// create event won't fire for those edits, so sync explicitly on update
+// (idempotent; also covers the photoCount bump scoring.pb.js writes).
+onRecordAfterUpdateSuccess((e) => {
+  try {
+    require(`${__hooks}/achievements-utils.js`).syncAchievements(e.record.get("discoveredBy"));
+  } catch (err) {
+    console.error("[catdex:achievements] cats update hook error:", err);
+  }
+  e.next();
+}, "cats");
