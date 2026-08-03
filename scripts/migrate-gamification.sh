@@ -12,6 +12,12 @@
 #   7. Creates the `duels` collection (skips if present).
 #   8. Creates the `reactions` collection (skips if present).
 #   9. Adds `dedicatedTo` (relation) + `message` (text) to `shares`, for postcards.
+#  10. Ensures `weekly_snapshots.score` is NOT `required: true` — the original
+#      setup created it as required, which breaks the cron for any user with
+#      score=0 (they fail with "score: cannot be blank"). Fixed 2026-08-03
+#      after two users were silently dropped from the weekly ranking. Do NOT
+#      revert this — the hook writes 0 explicitly for new users with no
+#      captures yet.
 #
 # Usage: PB_ADMIN_EMAIL=... PB_ADMIN_PASSWORD=... bash migrate-gamification.sh
 # Credentials MUST be set as env vars — NEVER hardcoded.
