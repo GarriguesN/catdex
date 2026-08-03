@@ -99,6 +99,35 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "duels");
 
+// ═══ Duel cancelled (delete only allowed while status='active' since Fase 1.3)
+// → notify the other side. e.record in AfterDelete still carries the deleted
+// row's fields, which is what we need — there's no other way to know who
+// the opponent was once the row is gone. ═══
+onRecordAfterDeleteSuccess((e) => {
+  try {
+    const challengerId = e.record.get("challenger");
+    const opponentId = e.record.get("opponent");
+    const cancellerId = e.auth.id;
+    // Canceller is the other party — don't tell them they cancelled their own duel.
+    const recipientId = cancellerId === challengerId ? opponentId : challengerId;
+    if (!recipientId || recipientId === cancellerId) {
+      e.next();
+      return;
+    }
+    const canceller = $app.findRecordById("users", cancellerId);
+    const cancellerName = canceller ? canceller.get("name") || "Tu rival" : "Tu rival";
+    require(`${__hooks}/push-utils.js`).sendPush(
+      recipientId,
+      "Duelo cancelado",
+      `${cancellerName} ha cancelado vuestro duelo.`,
+      "/friends"
+    );
+  } catch (err) {
+    console.error("[catdex:duels] cancel notify failed:", err);
+  }
+  e.next();
+}, "duels");
+
 // ═══ Daily cron — close duels past their endsAt ═══
 cronAdd("close-duels", "30 0 * * *", () => {
   const now = new Date().toISOString();
