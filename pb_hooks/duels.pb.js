@@ -128,8 +128,11 @@ onRecordAfterDeleteSuccess((e) => {
   e.next();
 }, "duels");
 
-// ═══ Daily cron — close duels past their endsAt ═══
-cronAdd("close-duels", "30 0 * * *", () => {
+// ═══ Hourly cron — close duels past their endsAt ═══
+// Was daily at 00:30 UTC; moved to hourly so a duel that ends at 18:00
+// resolves within an hour, not up to 24h later (the in-app countdown is
+// pinned to 0 during that gap). The filter is on status+endsAt, cheap.
+cronAdd("close-duels", "0 * * * *", () => {
   const now = new Date().toISOString();
 
   let due = [];
