@@ -129,4 +129,51 @@ describe("listMyDuels — perspective translation (challenger/opponent → me/th
     const result = await listMyDuels();
     expect(result).toEqual([]);
   });
+
+  // Fase 1.2 — finished duels must show frozen end-of-duel deltas, not
+  // recompute against today's score (which would drift every time either
+  // user captures another photo, weeks after the duel ended).
+  it("uses frozen end scores for finished duels, ignoring later captures", async () => {
+    mockDuels = [
+      duelRow({
+        status: "finished",
+        winnerSide: "challenger",
+        challengerStartScore: 100,
+        opponentStartScore: 100,
+        challengerEndScore: 140, // captured +40 before duel ended
+        opponentEndScore: 110,   // captured +10 before duel ended
+        // Today's live scores are higher — proves the client doesn't recompute.
+        expand: {
+          challenger: { id: "me", name: "Yo", avatar: "", score: 280 },
+          opponent: { id: "friend1", name: "Ana", avatar: "", score: 250 },
+        },
+      }),
+    ];
+    const [entry] = await listMyDuels();
+    expect(entry.myDelta).toBe(40);     // 140 - 100
+    expect(entry.theirDelta).toBe(10);  // 110 - 100
+    expect(entry.outcome).toBe("me");
+  });
+
+  it("falls back to current-score calc when finished duel has no frozen end scores", async () => {
+    // Legacy row from before Fase 1.2: finished, winnerSide set, but no
+    // challengerEndScore / opponentEndScore fields. The old behaviour must
+    // still produce a sensible answer rather than NaN or zero.
+    mockDuels = [
+      duelRow({
+        status: "finished",
+        winnerSide: "challenger",
+        challengerStartScore: 100,
+        opponentStartScore: 100,
+        // challengerEndScore and opponentEndScore intentionally absent
+        expand: {
+          challenger: { id: "me", name: "Yo", avatar: "", score: 150 },
+          opponent: { id: "friend1", name: "Ana", avatar: "", score: 120 },
+        },
+      }),
+    ];
+    const [entry] = await listMyDuels();
+    expect(entry.myDelta).toBe(50);  // 150 - 100
+    expect(entry.theirDelta).toBe(20); // 120 - 100
+  });
 });

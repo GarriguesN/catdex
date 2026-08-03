@@ -116,11 +116,19 @@ cronAdd("close-duels", "30 0 * * *", () => {
     try {
       const challenger = $app.findRecordById("users", duel.get("challenger"));
       const opponent = $app.findRecordById("users", duel.get("opponent"));
-      const challengerDelta = (challenger.get("score") || 0) - duel.get("challengerStartScore");
-      const opponentDelta = (opponent.get("score") || 0) - duel.get("opponentStartScore");
+      const challengerScore = challenger.get("score") || 0;
+      const opponentScore = opponent.get("score") || 0;
+      const challengerDelta = challengerScore - duel.get("challengerStartScore");
+      const opponentDelta = opponentScore - duel.get("opponentStartScore");
       const winnerSide =
         challengerDelta > opponentDelta ? "challenger" : opponentDelta > challengerDelta ? "opponent" : "tie";
 
+      // Freeze end scores so the client can show "Tú +40 · Ana +10"
+      // without those numbers drifting every time either user captures
+      // another photo (Fase 1.2). Without this, a duel that closed
+      // three weeks ago keeps recomputing deltas against today's score.
+      duel.set("challengerEndScore", challengerScore);
+      duel.set("opponentEndScore", opponentScore);
       duel.set("status", "finished");
       duel.set("winnerSide", winnerSide);
       $app.save(duel);
