@@ -8,7 +8,11 @@
  * a useful error?") with a single curl (Fase 0.1).
  */
 
-const HEALTH_VERSION = "2026-08-03-0.1";
+// Bump this in every deploy so a curl confirms which hooks build is live.
+// Declared with `var` (not const) because PocketBase's JSVM (goja) is
+// strict-ES5 and has been observed to throw cryptic 400s on top-level
+// const/let declarations in some build configurations. var works.
+var HEALTH_VERSION = "2026-08-03-0.1";
 
 routerAdd("GET", "/api/catdex/health", (e) => {
   return e.json(200, {
