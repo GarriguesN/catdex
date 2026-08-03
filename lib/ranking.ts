@@ -124,3 +124,107 @@ export async function getWeeklyRanking(cachedFriends?: FriendEntry[]): Promise<W
     }))
     .sort((a, b) => b.weeklyScore - a.weeklyScore);
 }
+
+export interface GlobalRankEntry {
+  userId: string;
+  name: string;
+  avatar: string;
+  score: number;
+  isMe: boolean;
+}
+
+/** Top N users by accumulated score, across the whole user base. Used
+ * for the global podium in /competition (Fase 2.3). Excludes email and
+ * any sensitive fields — only name/avatar/score, per the privacy
+ * contract documented in /settings/privacy. */
+export async function getGlobalRanking(limit?: number): Promise<GlobalRankEntry[]> {
+  const pb = getPocketBase();
+  const me = pb.authStore.record;
+  if (!me) return [];
+
+  // authRefresh so my own score in the returned list reflects the latest
+  // server value (consistent with the weekly ranking pattern).
+  try {
+    await pb.collection("users").authRefresh();
+  } catch (_) {}
+
+  const top = limit ?? 20;
+  const items = await pb.collection("users").getList(1, top, {
+    sort: "-score",
+    fields: "id,name,avatar,score",
+    $autoCancel: false,
+  });
+
+  const meFresh = pb.authStore.record ?? me;
+  return items.items.map((u: any) => ({
+    userId: u.id,
+    name: u.name || "",
+    avatar: u.avatar || "",
+    score: u.score || 0,
+    isMe: u.id === meFresh.id,
+  }));
+}
+
+export interface GlobalRankPosition {
+  rank: number;     // 1-based; "I am Nth"
+  total: number;    // total users with score > 0 (or all users, see below)
+  score: number;    // my current score (fresh)
+  /** The score of the user immediately above me — undefined if I'm #1.
+   *  Used by the UI to compute "pts to next rank". */
+  nextScore: number | undefined;
+}
+
+/** My position in the global ranking, computed with O(1) requests
+ * (not "fetch the whole table"). Strategy:
+ *   - one query that filters score > mine and reads totalItems → rank
+ *   - one query that fetches total users
+ *   - one query that fetches the user immediately above me (rank - 1) for
+ *     the "pts to next rank" chip in the UI
+ * All three run in parallel via Promise.all.
+ */
+export async function getMyGlobalRank(): Promise<GlobalRankPosition | null> {
+  const pb = getPocketBase();
+  const me = pb.authStore.record;
+  if (!me) return null;
+
+  try {
+    await pb.collection("users").authRefresh();
+  } catch (_) {}
+
+  const meFresh = pb.authStore.record ?? me;
+  const myScore = meFresh.score || 0;
+
+  const [ahead, total, next] = await Promise.all([
+    // count of users with strictly higher score
+    pb.collection("users").getList(1, 1, {
+      filter: `score > ${myScore}`,
+      fields: "id",
+      $autoCancel: false,
+    }),
+    // total user count (any score, including 0)
+    pb.collection("users").getList(1, 1, {
+      fields: "id",
+      $autoCancel: false,
+    }),
+    // the user immediately above me (closest score > mine). PB returns
+    // DESC by score, so the LAST item of the list is the one I need to
+    // overtake to move up a rank. We fetch perPage=N so we don't miss
+    // the closest one if ties exist; if totalItems=0 there's nobody above.
+    pb.collection("users").getList(1, 50, {
+      sort: "-score",
+      filter: `score > ${myScore}`,
+      fields: "id,score",
+      $autoCancel: false,
+    }).then((r) => {
+      const items = r.items || [];
+      return items[items.length - 1]; // smallest score still > mine
+    }).catch(() => undefined),
+  ]);
+
+  return {
+    rank: ahead.totalItems + 1,
+    total: total.totalItems,
+    score: myScore,
+    nextScore: next?.score,
+  };
+}

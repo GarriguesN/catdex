@@ -19,10 +19,17 @@ export default function PrivacyPage() {
         <span className="w-10 h-10 rounded-xl bg-catdex-orange/10 flex items-center justify-center text-catdex-orange shrink-0">
           <ShieldCheck className="h-5 w-5" />
         </span>
-        <p className="text-[0.8125rem] text-catdex-text-muted leading-relaxed">
-          Tus fotos y ubicaciones se guardan en tu cuenta y solo se comparten con la colonia de
-          CatDex. Nunca vendemos tus datos.
-        </p>
+        <div className="space-y-1.5 leading-relaxed">
+          <p className="text-[0.8125rem] text-catdex-text-muted">
+            Tus fotos y ubicaciones se guardan en tu cuenta y solo se comparten con la colonia de
+            CatDex. Nunca vendemos tus datos.
+          </p>
+          <p className="text-[0.8125rem] text-catdex-text-muted">
+            En el <strong className="text-catdex-text-secondary">ranking global</strong>{" "}
+            cualquier usuario registrado puede ver tu nombre, avatar y puntuación.
+            Tu email, ubicaciones y gatos concretos nunca se muestran ahí.
+          </p>
+        </div>
       </Card>
 
       <SettingsGroup>

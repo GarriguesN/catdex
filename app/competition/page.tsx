@@ -2,29 +2,40 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Swords, Plus, X, Trophy } from "lucide-react";
+import { Swords, Plus, X, Trophy, Globe } from "lucide-react";
 import clsx from "clsx";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { isAbortError } from "@/lib/pocketbase";
 import { listFriends, type FriendEntry } from "@/lib/friends";
-import { getWeeklyRanking, type WeeklyRankEntry } from "@/lib/ranking";
+import {
+  getWeeklyRanking,
+  getGlobalRanking,
+  getMyGlobalRank,
+  type WeeklyRankEntry,
+  type GlobalRankEntry,
+  type GlobalRankPosition,
+} from "@/lib/ranking";
 import { listMyDuels, createDuel, cancelDuel, type DuelEntry } from "@/lib/duels";
 import { TopBar } from "@/components/ui/TopBar";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Sheet } from "@/components/ui/Sheet";
+import { Podium } from "@/components/ui/Podium";
 import { FriendAvatar } from "@/components/friends/FriendAvatar";
 
 /**
- * "Competición" — everything competitive (weekly ranking, duels), pulled
- * together in one place reachable from the bottom nav instead of buried
- * inside /friends. Colonia compartida stays in /friends — it's cooperative,
- * not competitive, so it doesn't belong here.
+ * "Competición" — global ranking (podium), weekly friends ranking, and duels.
+ * The global ranking is the primary block — even users with no friends see it
+ * (Fase 2.3). The weekly ranking of friends is secondary, visible only when
+ * the user has at least one friend. Duels stay here. Colonia compartida stays
+ * in /friends — it's cooperative, not competitive.
  */
 export default function CompetitionPage() {
   const { user } = useRequireAuth();
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [weeklyRanking, setWeeklyRanking] = useState<WeeklyRankEntry[]>([]);
+  const [globalTop, setGlobalTop] = useState<GlobalRankEntry[]>([]);
+  const [myPosition, setMyPosition] = useState<GlobalRankPosition | null>(null);
   const [duels, setDuels] = useState<DuelEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,15 +47,19 @@ export default function CompetitionPage() {
     try {
       const f = await listFriends().catch(() => []);
       setFriends(f);
-      // Single listFriends() now feeds both the friends list and the ranking
-      // — getWeeklyRanking accepts the cached list to skip the internal
-      // fetch it used to do (Fase 1.5).
-      const [ranking, myDuels] = await Promise.all([
+      // Global ranking is independent of friends — fetch in parallel.
+      // Single listFriends() also feeds the weekly ranking to skip its
+      // internal fetch (Fase 1.5).
+      const [ranking, myDuels, top, pos] = await Promise.all([
         getWeeklyRanking(f).catch(() => []),
         listMyDuels().catch(() => []),
+        getGlobalRanking(20).catch(() => []),
+        getMyGlobalRank().catch(() => null),
       ]);
       setWeeklyRanking(ranking);
       setDuels(myDuels);
+      setGlobalTop(top);
+      setMyPosition(pos);
     } catch (err) {
       if (!isAbortError(err)) console.error("Failed to load competition data:", err);
     }
@@ -92,58 +107,79 @@ export default function CompetitionPage() {
           <div className="skeleton h-40 w-full" />
           <div className="skeleton h-40 w-full" />
         </>
-      ) : friends.length === 0 ? (
-        <div className="empty-state">
-          <Trophy className="h-10 w-10 text-catdex-gray-light mb-3" />
-          <p className="font-semibold text-catdex-text">Aún no hay competición</p>
-          <p className="text-sm text-catdex-text-muted mt-1.5 max-w-xs text-center">
-            Añade amigos para desbloquear el ranking semanal y los duelos
-          </p>
-          <Link href="/friends" className="btn-primary mt-5">
-            Ir a Amigos
-          </Link>
-        </div>
       ) : (
         <>
-          {/* Weekly ranking — friends only, resets Mondays. No divisions/
-              promotion, just "who's gained the most this week". */}
+          {/* Global podium — primary block. Visible even with zero friends. */}
           <Card>
-            <CardTitle className="mb-3">Ranking semanal</CardTitle>
-            {weeklyRanking.length === 0 ? (
+            <div className="flex items-center justify-between mb-3">
+              <CardTitle>Ranking global</CardTitle>
+              <span className="text-[0.6875rem] uppercase tracking-wide text-catdex-text-muted font-semibold inline-flex items-center gap-1">
+                <Globe className="h-3 w-3" />
+                Todos
+              </span>
+            </div>
+            {globalTop.length > 0 ? (
+              <>
+                <Podium top={globalTop} />
+                {myPosition && myPosition.rank > 3 && (
+                  <MyPositionCard pos={myPosition} />
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-catdex-text-muted px-1 py-6 text-center">
+                Aún no hay nadie en el ranking global.
+              </p>
+            )}
+          </Card>
+
+          {/* Weekly friends ranking — secondary. No podium here (per plan:
+              with 3-6 participants a 1-2-3 doesn't add signal; compact list). */}
+          {friends.length === 0 ? (
+            <Card>
+              <CardTitle className="mb-3">Ranking semanal</CardTitle>
               <p className="text-sm text-catdex-text-muted px-1">
                 Añade amigos para ver aquí el ranking semanal
               </p>
-            ) : weeklyRanking.every((e) => !e.hasSnapshot) ? (
-              // No snapshot yet for anyone this week — show the prep message
-              // instead of a list of zeros that would look like the app is
-              // broken. With Fase 1.1 (auto-reparable daily cron) this only
-              // happens in the first ~5 min after Monday 00:00 UTC.
-              <p className="text-sm text-catdex-text-muted px-1">
-                Ranking en preparación · empieza el lunes
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {weeklyRanking.map((entry, i) => (
-                  <div key={entry.userId} className="flex items-center gap-3">
-                    <span className="w-6 text-sm font-bold text-catdex-text-muted text-center shrink-0">
-                      {i + 1}
-                    </span>
-                    {entry.isMe ? (
-                      <FriendAvatar user={{ id: entry.userId, name: entry.name, avatar: entry.avatar }} className="w-9 h-9 text-sm" />
-                    ) : (
-                      <Link href={`/profile/${entry.userId}`}>
+              <Link href="/friends" className="btn-secondary mt-4 w-full inline-flex items-center justify-center gap-2">
+                <Trophy className="h-4 w-4" />
+                Ir a Amigos
+              </Link>
+            </Card>
+          ) : (
+            <Card>
+              <CardTitle className="mb-3">Ranking semanal</CardTitle>
+              {weeklyRanking.every((e) => !e.hasSnapshot) ? (
+                // No snapshot yet for anyone this week — show the prep message
+                // instead of a list of zeros that would look like the app is
+                // broken. With Fase 1.1 (auto-reparable daily cron) this only
+                // happens in the first ~5 min after Monday 00:00 UTC.
+                <p className="text-sm text-catdex-text-muted px-1">
+                  Ranking en preparación · empieza el lunes
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {weeklyRanking.map((entry, i) => (
+                    <div key={entry.userId} className="flex items-center gap-3">
+                      <span className="w-6 text-sm font-bold text-catdex-text-muted text-center shrink-0">
+                        {i + 1}
+                      </span>
+                      {entry.isMe ? (
                         <FriendAvatar user={{ id: entry.userId, name: entry.name, avatar: entry.avatar }} className="w-9 h-9 text-sm" />
-                      </Link>
-                    )}
-                    <p className={clsx("flex-1 min-w-0 text-sm truncate", entry.isMe ? "font-bold" : "font-semibold")}>
-                      {entry.isMe ? "Tú" : entry.name || "Sin nombre"}
-                    </p>
-                    <span className="text-sm font-bold text-catdex-orange">+{entry.weeklyScore}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                      ) : (
+                        <Link href={`/profile/${entry.userId}`}>
+                          <FriendAvatar user={{ id: entry.userId, name: entry.name, avatar: entry.avatar }} className="w-9 h-9 text-sm" />
+                        </Link>
+                      )}
+                      <p className={clsx("flex-1 min-w-0 text-sm truncate", entry.isMe ? "font-bold" : "font-semibold")}>
+                        {entry.isMe ? "Tú" : entry.name || "Sin nombre"}
+                      </p>
+                      <span className="text-sm font-bold text-catdex-orange">+{entry.weeklyScore}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Duels */}
           <Card>
@@ -230,6 +266,34 @@ export default function CompetitionPage() {
           </div>
         </div>
       </Sheet>
+    </div>
+  );
+}
+
+/** Compact "your position" row that sits below the podium when you're
+ *  not in the top-3. Pulled out to keep the parent readable. */
+function MyPositionCard({ pos }: { pos: GlobalRankPosition }) {
+  // "Puesto 47 de 210 · a 120 pts del 46"
+  // Plan: if top-10 → show distance to podium; else → distance to #above.
+  const showDistance = pos.nextScore != null && pos.nextScore > pos.score;
+  const distance = showDistance ? pos.nextScore! - pos.score : 0;
+  const distanceTarget = pos.rank <= 10 ? "del podio" : `del ${pos.rank - 1}º`;
+
+  return (
+    <div className="mt-3 px-3 py-2.5 rounded-2xl bg-catdex-input-bg flex items-center justify-between">
+      <div>
+        <p className="text-[0.6875rem] uppercase tracking-wide text-catdex-text-muted font-semibold">
+          Tu puesto
+        </p>
+        <p className="text-base font-bold text-catdex-text">
+          {pos.rank} <span className="text-[0.8125rem] font-normal text-catdex-text-muted">de {pos.total}</span>
+        </p>
+      </div>
+      {showDistance && (
+        <p className="text-[0.8125rem] text-catdex-text-secondary">
+          a <span className="font-bold text-catdex-orange">{distance}</span> pts {distanceTarget}
+        </p>
+      )}
     </div>
   );
 }
