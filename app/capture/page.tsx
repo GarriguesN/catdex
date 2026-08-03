@@ -366,6 +366,10 @@ export default function CapturePage() {
       form.append("photo", new File([blob], "photo.webp", { type: blob.type }));
       form.append("thumb", new File([thumbBlob], "thumb.webp", { type: thumbBlob.type }));
       form.append("phash", hash);
+      // Device UTC offset at capture time (minutes to add to UTC to get the
+      // capturer's local time) — follows the phone's timezone, which tracks
+      // GPS position. Powers local-time achievements and streaks.
+      form.append("tzOffsetMin", String(-new Date().getTimezoneOffset()));
       if (positionRef.current) {
         form.append("lat", String(positionRef.current.lat));
         form.append("lng", String(positionRef.current.lng));
@@ -376,6 +380,24 @@ export default function CapturePage() {
           new Promise<string>((r) => setTimeout(() => r(""), 3000)),
         ]);
         if (city) form.append("city", city);
+
+        // Best-effort weather at capture (WMO code + °C) — powers the
+        // weather achievements (rainy_day, snowy_day, heat_wave, cold_snap).
+        // Never blocks the save: on failure the fields are simply omitted.
+        try {
+          const w = await Promise.race([
+            fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${positionRef.current.lat}&longitude=${positionRef.current.lng}&current=weather_code,temperature_2m`
+            ).then((r) => r.json()),
+            new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+          ]);
+          const code = w?.current?.weather_code;
+          const temp = w?.current?.temperature_2m;
+          if (typeof code === "number") form.append("weatherCode", String(code));
+          if (typeof temp === "number") form.append("tempC", String(Math.round(temp)));
+        } catch {
+          // achievements stay locked — fine
+        }
       }
       await pb.collection("photos").create(form, { requestKey: null });
 

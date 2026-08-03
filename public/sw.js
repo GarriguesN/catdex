@@ -1,6 +1,6 @@
 // CatDex Service Worker — minimal, no install-time caching
 // Push notifications only; everything else passes through
-const CACHE_NAME = "catdex-v3.9";
+const CACHE_NAME = "catdex-v3.10";
 
 self.addEventListener("install", () => {
   self.skipWaiting(); // activate immediately, don't wait for old SW

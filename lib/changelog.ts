@@ -8,6 +8,18 @@ export interface ChangelogEntry {
 // app/settings/about/page.tsx's "Versión" row alongside adding an entry here.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.4.2",
+    date: "Agosto 2026",
+    items: [
+      "Logros con hora local real: Vigía nocturno, Madrugador, Día de suerte y las rachas usan la hora de tu dispositivo (sigue al GPS al viajar)",
+      "Explorador y Cartógrafo ahora usan zonas reales (latitud + longitud): dos fotos a 100 km ya no cuentan como la misma zona",
+      "Día de lluvia real: se guarda el tiempo meteorológico en cada captura — lluvia, nieve, calor o frío desbloquean su logro automáticamente",
+      "Logros nuevos: Día de nieve ❄️, Ola de calor 🌡️ y Frío polar 🥶",
+      "Umbrales suavizados: Obsesionado ahora con 30 fotos a un mismo gato (antes 50) y Fotógrafo profesional con 250 fotos (antes 500)",
+      "Logros ya merecidos desbloqueados de golpe para todas las cuentas existentes",
+    ],
+  },
+  {
     version: "1.4.1",
     date: "Agosto 2026",
     items: [

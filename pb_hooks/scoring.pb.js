@@ -3,14 +3,18 @@
  * Deploy: copy to /opt/pocketbase/pb_hooks/ on CT 120
  */
 
-// "Day" boundary for streaks is UTC midnight (server-local, same
-// approximation already accepted for night_owl/early_bird in
-// achievements-utils.js) — not per-user timezone.
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-function yesterdayStr() {
-  return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+// "Day" boundary for streaks is the capturer's LOCAL day: the capture flow
+// stores the device's UTC offset (tzOffsetMin, follows GPS/network timezone),
+// falling back to Europe/Madrid for pre-v1.4.2 photos. A photo at 00:30 in
+// Spain counts as the same day as one at 23:00 the previous evening — not as
+// a different UTC day.
+const { esOffset } = require(`${__hooks}/achievements-utils.js`);
+
+function photoTzOffsetMin(photo) {
+  const off = photo.get("tzOffsetMin");
+  // 0 = legacy photo without capture metadata (PB number fields store 0,
+  // not null) → fall back to Europe/Madrid.
+  return typeof off === "number" && off !== 0 && Number.isFinite(off) ? off : esOffset(new Date());
 }
 
 // ═══ onRecordAfterCreateSuccess for photos ═══
@@ -41,10 +45,12 @@ onRecordAfterCreateSuccess((e) => {
         if (user) {
           user.set("score", (user.get("score") || 0) + points);
 
-          // Streak: same day as last capture = unchanged, next day = +1,
-          // any gap = reset to 1. Compute before transaction (outer scope).
-          const today = new Date().toISOString().slice(0, 10);
-          const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+          // Streak: same local day as last capture = unchanged, next local
+          // day = +1, any gap = reset to 1. Compute before transaction
+          // (outer scope).
+          const tzOff = photoTzOffsetMin(photo);
+          const today = new Date(Date.now() + tzOff * 60000).toISOString().slice(0, 10);
+          const yesterday = new Date(Date.now() + tzOff * 60000 - 86400000).toISOString().slice(0, 10);
           const lastDate = user.get("lastCaptureDate") || "";
           if (lastDate !== today) {
             const streak = lastDate === yesterday ? (user.get("currentStreak") || 0) + 1 : 1;
