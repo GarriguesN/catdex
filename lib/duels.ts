@@ -54,12 +54,14 @@ export async function listMyDuels(): Promise<DuelEntry[]> {
     // don't drift every time either side captures a new photo (Fase 1.2).
     // For active duels (or legacy finished rows without the end scores),
     // fall back to current-score-minus-start-score.
+    // Both paths clamp deltas to 0 — Fase 1.6 cross-side contract (see
+    // lib/ranking.ts header). A duel measures captures, not losses.
     const useFrozen = r.status === "finished" && r.challengerEndScore != null && r.opponentEndScore != null;
     const myFrozen = useFrozen
-      ? (isChallenger ? r.challengerEndScore : r.opponentEndScore) - (isChallenger ? r.challengerStartScore : r.opponentStartScore)
+      ? Math.max(0, (isChallenger ? r.challengerEndScore : r.opponentEndScore) - (isChallenger ? r.challengerStartScore : r.opponentStartScore))
       : null;
     const theirFrozen = useFrozen
-      ? (isChallenger ? r.opponentEndScore : r.challengerEndScore) - (isChallenger ? r.opponentStartScore : r.challengerStartScore)
+      ? Math.max(0, (isChallenger ? r.opponentEndScore : r.challengerEndScore) - (isChallenger ? r.opponentStartScore : r.challengerStartScore))
       : null;
     const myDelta = myFrozen ?? Math.max(0, (isChallenger ? challengerUser.score ?? 0 : opponentUser.score ?? 0) - (isChallenger ? r.challengerStartScore : r.opponentStartScore));
     const theirDelta = theirFrozen ?? Math.max(0, (isChallenger ? opponentUser.score ?? 0 : challengerUser.score ?? 0) - (isChallenger ? r.opponentStartScore : r.challengerStartScore));

@@ -4,6 +4,31 @@
  * and duel-closing cron live in pb_hooks (goja, not unit-testable from
  * Node) but reuse the same "delta since a start score" concept as
  * computeWeeklyDelta/computeDuelWinner below.
+ *
+ * ## Cross-side contract: weekly delta + duel deltas clamp to 0
+ *
+ * Both client (computeWeeklyDelta, lib/duels.ts:myDelta/theirDelta) and
+ * server (pb_hooks/duels.pb.js close-duels cron) clamp deltas to a
+ * minimum of 0 with Math.max(0, ...). Decided 2026-08-03 (Fase 1.6):
+ *
+ *   - Weekly ranking and duels measure *captures since a baseline*, not
+ *     risk management. When Fase 5.3 contracts let score decrease, we
+ *     still want a duel to read "you gained 0" rather than "you lost 50".
+ *
+ *   - The clamp lives in two places. They MUST stay in sync. If you
+ *     change one, change the other.
+ *
+ *   - computeWeeklyDelta clamps the snapshot-based weekly score; both
+ *     deltas in lib/duels.ts clamp the current-vs-start per-side score.
+ *     The close-duels cron in pb_hooks/duels.pb.js clamps the same
+ *     per-side score before computing winnerSide, so the server's
+ *     winner determination matches what the client displays.
+ *
+ *   - The two server values (challengerEndScore / opponentEndScore)
+ *     stored at close time are NOT clamped — they are the raw scores
+ *     at the moment of closing. Only the deltas derived from them are.
+ *     This way the numbers can be replayed if we ever change the
+ *     clamp policy.
  */
 
 import { getPocketBase } from "./pocketbase";

@@ -150,8 +150,13 @@ cronAdd("close-duels", "0 * * * *", () => {
       const opponent = $app.findRecordById("users", duel.get("opponent"));
       const challengerScore = challenger.get("score") || 0;
       const opponentScore = opponent.get("score") || 0;
-      const challengerDelta = challengerScore - duel.get("challengerStartScore");
-      const opponentDelta = opponentScore - duel.get("opponentStartScore");
+      // Clamp to 0 — a duel measures captures since it started, not risk
+      // management. If a future feature (Fase 5.3 contracts) lets score
+      // decrease, we still want the duel to read "you gained 0" rather
+      // than "you lost 50". MUST match lib/duels.ts:Math.max(0, ...) — see
+      // lib/ranking.ts header comment for the cross-side contract.
+      const challengerDelta = Math.max(0, challengerScore - duel.get("challengerStartScore"));
+      const opponentDelta = Math.max(0, opponentScore - duel.get("opponentStartScore"));
       const winnerSide =
         challengerDelta > opponentDelta ? "challenger" : opponentDelta > challengerDelta ? "opponent" : "tie";
 

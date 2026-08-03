@@ -176,4 +176,50 @@ describe("listMyDuels — perspective translation (challenger/opponent → me/th
     expect(entry.myDelta).toBe(50);  // 150 - 100
     expect(entry.theirDelta).toBe(20); // 120 - 100
   });
+
+  // Fase 1.6 — client and server both clamp deltas to 0 (a duel measures
+  // captures, not losses). When Fase 5.3 contracts let score decrease, we
+  // still want the duel to read "you gained 0", not "you lost 50".
+  it("clamps a negative live delta to 0 (Fase 1.6 cross-side contract)", async () => {
+    // Active duel where current score is below the start score (e.g. user
+    // spent points on a contract that hasn't shipped yet). Active duels
+    // always use the live-score path, which already clamps.
+    mockDuels = [
+      duelRow({
+        status: "active",
+        challengerStartScore: 500,
+        opponentStartScore: 100,
+        expand: {
+          challenger: { id: "me", name: "Yo", avatar: "", score: 200 }, // -300 → 0
+          opponent: { id: "friend1", name: "Ana", avatar: "", score: 120 },
+        },
+      }),
+    ];
+    const [entry] = await listMyDuels();
+    expect(entry.myDelta).toBe(0);    // clamped, not -300
+    expect(entry.theirDelta).toBe(20); // 120 - 100
+  });
+
+  it("clamps a negative frozen delta to 0 in finished duels", async () => {
+    // Same as above but for a finished duel: the frozen endScore is below
+    // the startScore, so the delta must clamp to 0.
+    mockDuels = [
+      duelRow({
+        status: "finished",
+        winnerSide: "opponent", // opponent had a positive frozen delta
+        challengerStartScore: 500,
+        opponentStartScore: 100,
+        challengerEndScore: 480, // -20 → clamp to 0
+        opponentEndScore: 160,  // +60
+        expand: {
+          challenger: { id: "me", name: "Yo", avatar: "", score: 480 },
+          opponent: { id: "friend1", name: "Ana", avatar: "", score: 200 },
+        },
+      }),
+    ];
+    const [entry] = await listMyDuels();
+    expect(entry.myDelta).toBe(0);    // clamped, not -20
+    expect(entry.theirDelta).toBe(60); // 160 - 100
+    expect(entry.outcome).toBe("them"); // opponent won on the clamped values
+  });
 });
