@@ -1,10 +1,14 @@
 /**
  * PocketBase hooks — 1-on-1 duels between friends (Fase C.1).
  * Deploy: copy to /opt/pocketbase/pb_hooks/ on CT 120, together with
- * push-utils.js.
+ * push-utils.js and cron-runs-utils.js.
+ *
+ * Implementation note: this file declares NO top-level variables. The
+ * JSVM (goja) tolerates const/var in files that only use onRecord/cronAdd
+ * callbacks, but throws on them silently in files that register routes.
+ * Since we may add a route here later, we keep the convention of inline
+ * values everywhere. See health.pb.js header for the full diagnosis.
  */
-
-const DUEL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ═══ onRecordCreateRequest for duels ═══
 // challenger is forced from the auth token (never trust the client's
@@ -78,7 +82,7 @@ onRecordCreateRequest((e) => {
   e.record.set("status", "active");
   e.record.set("challengerStartScore", challengerRec.get("score") || 0);
   e.record.set("opponentStartScore", opponentRec.get("score") || 0);
-  e.record.set("endsAt", new Date(Date.now() + DUEL_DURATION_MS).toISOString());
+  e.record.set("endsAt", new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
 
   e.next();
 }, "duels");
@@ -135,11 +139,15 @@ onRecordAfterDeleteSuccess((e) => {
 cronAdd("close-duels", "0 * * * *", () => {
   const now = new Date().toISOString();
 
+  let processed = 0;
+  let errors = 0;
+
   let due = [];
   try {
     due = $app.findRecordsByFilter("duels", "status = 'active' && endsAt <= {:now}", "", 0, 0, { now });
   } catch (err) {
     console.error("[catdex:duels-cron] lookup failed:", err);
+    require(`${__hooks}/cron-runs-utils.js`).recordCronRun("close-duels", 0, 1);
     return;
   }
 
@@ -176,8 +184,12 @@ cronAdd("close-duels", "0 * * * *", () => {
           : `Ganó ${winnerSide === "challenger" ? challenger.get("name") || "el retador" : opponent.get("name") || "el retado"}.`;
       push.sendPush(duel.get("challenger"), "Duelo terminado", resultText, "/friends");
       push.sendPush(duel.get("opponent"), "Duelo terminado", resultText, "/friends");
+      processed += 1;
     } catch (err) {
       console.error("[catdex:duels-cron] failed to close duel", duel.id, err);
+      errors += 1;
     }
   });
+
+  require(`${__hooks}/cron-runs-utils.js`).recordCronRun("close-duels", processed, errors);
 });

@@ -10,25 +10,28 @@
  * creates that week's snapshot. Idempotency via the per-user per-week
  * findFirstRecordByFilter below — only the first run each (user, weekKey)
  * does real work, the rest is a cheap lookup.
+ *
+ * Implementation note: NO top-level function/var/const declarations. goja
+ * 0.23.x loads the file but throws cryptic 400s on routes from files that
+ * declare them. The weekMondayKey logic is inlined below; the matching
+ * client copy in lib/ranking.ts has unit tests. See health.pb.js header.
  */
-
-// UTC-Monday key ("YYYY-MM-DD") matching lib/ranking.ts:weekMondayKey.
-// Duplicated on purpose so the hook stays self-contained (no require/import
-// in goja); the other copy is in lib/ranking.ts and has unit tests.
-function weekMondayKey(date) {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay(); // 0=Sun..6=Sat
-  const daysSinceMonday = (day + 6) % 7; // Mon=0, Tue=1, ..., Sun=6
-  d.setUTCDate(d.getUTCDate() - daysSinceMonday);
-  return d.toISOString().slice(0, 10);
-}
 
 // 00:05 UTC daily. Monday creates the new week's snapshot for every user;
 // the rest of the week, the per-user findFirstRecordByFilter below finds
 // an existing snapshot and short-circuits — so the daily overhead is one
 // lookup per user, not one create.
 cronAdd("weekly-snapshot", "5 0 * * *", () => {
-  const weekKey = weekMondayKey(new Date());
+  // Inline UTC-Monday key — matches lib/ranking.ts:weekMondayKey.
+  // Duplicated to avoid a top-level function (goja JSVM limitation).
+  const d = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+  const day = d.getUTCDay();
+  const daysSinceMonday = (day + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - daysSinceMonday);
+  const weekKey = d.toISOString().slice(0, 10);
+
+  let processed = 0;
+  let errors = 0;
 
   let users = [];
   try {
@@ -36,6 +39,7 @@ cronAdd("weekly-snapshot", "5 0 * * *", () => {
     users = $app.findRecordsByFilter("users", "id != ''", "", 0, 0, {});
   } catch (err) {
     console.error("[catdex:ranking-cron] user lookup failed:", err);
+    require(`${__hooks}/cron-runs-utils.js`).recordCronRun("weekly-snapshot", 0, 1);
     return;
   }
 
@@ -61,9 +65,13 @@ cronAdd("weekly-snapshot", "5 0 * * *", () => {
         // coerce, but ?? makes intent obvious and matches JS best practice).
         rec.set("score", u.get("score") ?? 0);
         txApp.save(rec);
+        processed += 1;
       } catch (err) {
         console.error("[catdex:ranking-cron] snapshot failed for user", u.id, err);
+        errors += 1;
       }
     });
   });
+
+  require(`${__hooks}/cron-runs-utils.js`).recordCronRun("weekly-snapshot", processed, errors);
 });
