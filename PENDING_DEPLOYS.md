@@ -1,24 +1,53 @@
 # Deploys pendientes de rebuild en CT 120
 
-Fecha: 2026-08-03
+**Estado 2026-08-03 19:59 UTC: VACÍO — todos los commits pendientes han sido desplegados.**
 
-CT 120 tiene 512 MB RAM, 1 CPU. Build de Next 16 con Turbopack OOMea en
-este perfil (mismo patrón que CT 119/GarageLedger). Por política del
-proyecto: rebuild local + rsync, no `npm run build` in-place.
+Último deploy completo aplicado al servicio `catdex` (Next.js standalone):
+- Build local: `npm run build` en `/root/catdex` (8 GB RAM)
+- Paquete: `.next/` + `server.js` + `public/` → `/tmp/catdex-build.tgz` (32 MB)
+- Transfer: `cat | ssh sshpass ... pct exec 120` (stdin del ssh)
+- Deploy: `cp -r next/.next /opt/catdex/` + `cp server.js /opt/catdex/` + restart
+- Verificado: `https://catdex.nglab.es/` HTTP 200, `/competition` 200, `/api/catdex/health` 200
 
-Cambios de cliente acumulados pendientes de rebuild:
+Commits incluidos en este rebuild:
+- `0f99147` (1.2) — lib/duels.ts fallback frozen/legacy
+- `5273123` (1.5) — fixes cliente (autoCancel, getWeeklyRanking(friends?), authRefresh, hasSnapshot, UI prep)
+- `f68aece` (1.6) — clamp cliente/servidor + contrato cross-side
 
-| Commit | Archivos | Por qué |
-|---|---|---|
-| 0f99147 | lib/duels.ts | Fallback frozen/legacy en listMyDuels |
-| (1.5)  | lib/duels.ts, lib/ranking.ts, app/competition/page.tsx | $autoCancel:false en duels y ranking; getWeeklyRanking acepta friends; authRefresh del propio user; UI "ranking en preparación" |
+Pendientes (si hubiera): vacío.
 
-Procedimiento cuando se decida ejecutar el rebuild:
-1. Build local: `cd /root/catdex && npm run build`
-2. Rsync a CT 120: `.next/`, `server.js`, `public/`
-3. `ssh root@192.168.1.200 'pct exec 120 -- systemctl restart catdex'`
-4. Verificar: `curl -I https://catdex.nglab.es/` y `curl https://catdex.nglab.es/api/health`
+## Procedimiento para futuros deploys
 
-Nota: no hay duelos terminados en producción (verificado 2026-08-03, 0
-filas en `duels`), por lo que el cambio de cliente no tiene efecto
-visible hasta que se cierre el primer duelo post-deploy.
+1. Build local:
+   ```bash
+   cd /root/catdex
+   npm run build
+   ```
+
+2. Empaquetar output:
+   ```bash
+   rm -rf /tmp/catdex-build && mkdir -p /tmp/catdex-build
+   cp -r .next /tmp/catdex-build/next/.next
+   cp .next/standalone/server.js /tmp/catdex-build/server.js
+   cp -r public /tmp/catdex-build/public
+   cd /tmp && tar czf catdex-build.tgz catdex-build/
+   ```
+
+3. Transferir al CT 120 (CT 120 está detrás de Proxmox; `scp` al FS del host no llega al FS del CT, hay que pipe-ar por stdin):
+   ```bash
+   cat /tmp/catdex-build.tgz | sshpass -p 'YN6!q@tewJ6pHD' ssh root@192.168.1.200 \
+     'pct exec 120 -- /bin/bash -c "cat > /tmp/catdex-build.tgz && cd /tmp && tar xzf catdex-build.tgz"'
+   ```
+
+4. Aplicar y reiniciar:
+   ```bash
+   sshpass -p 'YN6!q@tewJ6pHD' ssh root@192.168.1.200 \
+     'pct exec 120 -- /bin/bash -c "cd /tmp/catdex-build && cp -r next/.next /opt/catdex/ && cp server.js /opt/catdex/ && cp -r public/. /opt/catdex/public/"'
+   sshpass -p 'YN6!q@tewJ6pHD' ssh root@192.168.1.200 'pct exec 120 -- /bin/systemctl restart catdex'
+   ```
+
+5. Verificar:
+   ```bash
+   curl -I https://catdex.nglab.es/  # 200 OK
+   curl -s https://catdex.nglab.es/pb/api/catdex/health  # {"hooks":"ok",...}
+   ```
