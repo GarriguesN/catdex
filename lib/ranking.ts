@@ -32,7 +32,7 @@
  */
 
 import { getPocketBase } from "./pocketbase";
-import { listFriends, type FriendEntry } from "./friends";
+import { listFriends } from "./friends";
 
 /** UTC date key ("YYYY-MM-DD") of the Monday of the week containing `date`. */
 export function weekMondayKey(date: Date): string {
@@ -80,7 +80,7 @@ export interface WeeklyRankEntry {
  *   caller (e.g. /competition page) already has them. Saves one round-trip
  *   per page load (Fase 1.5).
  */
-export async function getWeeklyRanking(cachedFriends?: FriendEntry[]): Promise<WeeklyRankEntry[]> {
+export async function getWeeklyRanking(cachedFriends?: Awaited<ReturnType<typeof listFriends>>): Promise<WeeklyRankEntry[]> {
   const pb = getPocketBase();
   const me = pb.authStore.record;
   if (!me) return [];
@@ -91,7 +91,7 @@ export async function getWeeklyRanking(cachedFriends?: FriendEntry[]): Promise<W
   // until I touch the app (Fase 1.5).
   try {
     await pb.collection("users").authRefresh();
-  } catch (_) {
+  } catch {
     // refresh is best-effort — ranking still works with the cached score
   }
 
@@ -111,7 +111,7 @@ export async function getWeeklyRanking(cachedFriends?: FriendEntry[]): Promise<W
                         // while this query is in flight, causing PB to cancel
                         // and the catch to swallow an empty section.
   });
-  const snapshotByUser = new Map(snapshots.map((s: any) => [s.user, s.score]));
+  const snapshotByUser = new Map(snapshots.map((s: { user: string; score: number }) => [s.user, s.score]));
 
   return people
     .map((p) => ({
@@ -146,7 +146,7 @@ export async function getGlobalRanking(limit?: number): Promise<GlobalRankEntry[
   // server value (consistent with the weekly ranking pattern).
   try {
     await pb.collection("users").authRefresh();
-  } catch (_) {}
+  } catch {}
 
   const top = limit ?? 20;
   const items = await pb.collection("users").getList(1, top, {
@@ -156,7 +156,7 @@ export async function getGlobalRanking(limit?: number): Promise<GlobalRankEntry[
   });
 
   const meFresh = pb.authStore.record ?? me;
-  return items.items.map((u: any) => ({
+  return items.items.map((u: { id: string; name?: string; avatar?: string; score?: number }) => ({
     userId: u.id,
     name: u.name || "",
     avatar: u.avatar || "",
@@ -189,7 +189,7 @@ export async function getMyGlobalRank(): Promise<GlobalRankPosition | null> {
 
   try {
     await pb.collection("users").authRefresh();
-  } catch (_) {}
+  } catch {}
 
   const meFresh = pb.authStore.record ?? me;
   const myScore = meFresh.score || 0;
