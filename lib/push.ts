@@ -57,7 +57,7 @@ async function getRegistration(): Promise<ServiceWorkerRegistration> {
   try {
     return await withTimeout(navigator.serviceWorker.ready, 5000, "service worker ready");
   } catch {
-    console.log("[push] SW not ready, trying explicit registration...");
+    // Ignore error and fall through
   }
   // Try existing registration
   const existing = await navigator.serviceWorker.getRegistration();
