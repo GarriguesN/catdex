@@ -9,7 +9,7 @@ import { openCamera, captureFrame, isCameraAvailable, setTorch } from "@/lib/cam
 import { generateCatName } from "@/lib/names";
 import { getBlurCopy, getNotCatCopy, isKnownAnimal } from "@/lib/copy";
 import { reverseGeocode } from "@/lib/geo";
-import { classifyPhoto, preloadClassifier, type ClassificationResult } from "@/lib/classifier";
+import { classifyPhoto, preloadClassifier } from "@/lib/classifier";
 import { computePHash, similarity } from "@/lib/phash";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { playShutterSound } from "@/lib/sounds";
@@ -40,7 +40,7 @@ interface DebugInfo {
   size: string;
   blurScore: number;
   decision: string;
-  classifier?: ClassificationResult;
+  classifier?: Awaited<ReturnType<typeof classifyPhoto>>;
 }
 
 export default function CapturePage() {
