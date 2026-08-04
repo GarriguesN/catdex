@@ -30,7 +30,8 @@ import clsx from "clsx";
 import { getPocketBase, isAbortError } from "@/lib/pocketbase";
 import { getOrCreateShareUrl, sendPostcard } from "@/lib/shares";
 import { rarityForDiscovererCount } from "@/lib/gamification-defs";
-import { getPhotoReactions, setMyReaction, REACTION_EMOJIS, type ReactionEmoji } from "@/lib/reactions";
+import { getPhotoReactions, setMyReaction, REACTION_EMOJIS } from "@/lib/reactions";
+import type { ReactionEmoji, ReactionSummary } from "@/lib/reactions";
 import { findSharedDiscoverer } from "@/lib/shared-discovery";
 import { listFriends, type FriendEntry } from "@/lib/friends";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "@/lib/favorites";
@@ -82,7 +83,7 @@ function CatDetailInner() {
   const [savedSize, setSavedSize] = useState<string | null>(null);
   const [place, setPlace] = useState<string | null>(null);
   const [weather, setWeather] = useState<{ temp: number; label: string } | null>(null);
-  const [reactionSummary, setReactionSummary] = useState<{ emoji: ReactionEmoji; count: number }[]>([]);
+  const [reactionSummary, setReactionSummary] = useState<ReactionSummary[]>([]);
   const [myReaction, setMyReactionState] = useState<ReactionEmoji | null>(null);
   const [sharedDiscoverer, setSharedDiscoverer] = useState<FriendEntry["friend"] | null>(null);
   const [friends, setFriends] = useState<FriendEntry[]>([]);
