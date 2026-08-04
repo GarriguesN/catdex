@@ -86,8 +86,8 @@ async function computePHash(imagePath: string): Promise<string> {
 }
 
 function hammingDistance(hashA: string, hashB: string): number {
-  let a = BigInt("0x" + hashA);
-  let b = BigInt("0x" + hashB);
+  const a = BigInt("0x" + hashA);
+  const b = BigInt("0x" + hashB);
   let xor = a ^ b;
   let count = 0;
   while (xor > 0n) {
