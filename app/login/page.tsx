@@ -83,7 +83,7 @@ export default function LoginPage() {
         setError(err?.message || "No se ha podido completar el inicio de sesión");
         setLoading(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
   async function submitEmail(e: React.FormEvent) {

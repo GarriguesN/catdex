@@ -6,6 +6,7 @@
  * directly from the tab.
  */
 
+import { sendTestNotificationAction } from "@/app/actions/push";
 import { getPocketBase } from "./pocketbase";
 
 export type PushAvailability =
@@ -143,21 +144,18 @@ export async function sendTestNotification(): Promise<boolean> {
     console.warn("[push] sendTestNotification: no subscription");
     return false;
   }
+  const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    console.error("[push] sendTestNotification: invalid subscription data");
+    return false;
+  }
+
   try {
-    const resp = await fetch("/api/push/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_PUSH_INTERNAL_SECRET || ""}`,
-      },
-      body: JSON.stringify({
-        subscription: sub.toJSON(),
-        title: "¡Prueba de notificación!",
-        body: "Si ves esto, las notificaciones de CatDex funcionan correctamente.",
-        url: "/",
-      }),
+    const result = await sendTestNotificationAction({
+      endpoint: json.endpoint,
+      keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
     });
-    return resp.ok;
+    return result.success;
   } catch (err) {
     console.error("[push] sendTestNotification failed:", err);
     return false;
