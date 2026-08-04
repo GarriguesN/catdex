@@ -43,14 +43,17 @@ export default function AccountPage() {
     try {
       const pb = getPocketBase();
       const userId = pb.authStore.record?.id;
+
       const cats = await pb.collection("cats").getFullList({ filter: `discoveredBy="${userId}"` });
-      for (const cat of cats) {
-        const photos = await pb.collection("photos").getFullList({ filter: `cat="${cat.id}"` });
-        for (const photo of photos) {
-          await pb.collection("photos").delete(photo.id);
-        }
-        await pb.collection("cats").delete(cat.id);
+
+      if (cats.length > 0) {
+        const catFilter = cats.map(cat => `cat="${cat.id}"`).join(" || ");
+        const photos = await pb.collection("photos").getFullList({ filter: catFilter });
+
+        await Promise.all(photos.map(photo => pb.collection("photos").delete(photo.id)));
+        await Promise.all(cats.map(cat => pb.collection("cats").delete(cat.id)));
       }
+
       window.location.href = "/";
     } catch (err) {
       alert("Error: " + (err as Error).message);
