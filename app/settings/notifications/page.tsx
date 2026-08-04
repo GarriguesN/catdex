@@ -47,11 +47,9 @@ export default function NotificationsPage() {
     }
 
     const avail = getPushAvailability();
-    console.log("[push] availability:", avail);
     setAvailability(avail);
     getExistingSubscription()
       .then((sub) => {
-        console.log("[push] existing subscription:", sub ? sub.endpoint : null);
         setSubscribed(!!sub);
       })
       .catch((err) => console.error("[push] getExistingSubscription failed:", err));
@@ -64,7 +62,6 @@ export default function NotificationsPage() {
   }
 
   async function togglePush(enable: boolean) {
-    console.log("[push] toggle:", enable);
     setWorking(true);
     setError("");
     try {
