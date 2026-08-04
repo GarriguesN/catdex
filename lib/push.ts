@@ -144,17 +144,13 @@ export async function sendTestNotification(): Promise<boolean> {
     return false;
   }
   try {
-    const resp = await fetch("/api/push/send", {
+    const resp = await fetch("/api/push/test", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_PUSH_INTERNAL_SECRET || ""}`,
       },
       body: JSON.stringify({
         subscription: sub.toJSON(),
-        title: "¡Prueba de notificación!",
-        body: "Si ves esto, las notificaciones de CatDex funcionan correctamente.",
-        url: "/",
       }),
     });
     return resp.ok;
