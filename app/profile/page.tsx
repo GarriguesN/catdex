@@ -165,14 +165,11 @@ export default function ProfilePage() {
     for (const p of photos) {
       if (p.city) cityCounts.set(p.city, (cityCounts.get(p.city) || 0) + 1);
     }
-    let topCity = "";
-    let topCount = 0;
-    for (const [city, count] of cityCounts) {
-      if (count > topCount) {
-        topCity = city;
-        topCount = count;
-      }
-    }
+
+    const topCity = Array.from(cityCounts.entries()).reduce(
+      (a, b) => (b[1] > a[1] ? b : a),
+      ["", 0] as [string, number]
+    )[0];
 
     return { streak, cities: cityCounts.size, topCity };
   }, [photos]);
