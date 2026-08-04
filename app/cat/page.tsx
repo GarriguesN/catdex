@@ -272,7 +272,7 @@ function CatDetailInner() {
     if (!cat) return;
     const pb = getPocketBase();
     const allPhotos = await pb.collection("photos").getFullList({ filter: `cat="${cat.id}"` });
-    for (const p of allPhotos) await pb.collection("photos").delete(p.id);
+    await Promise.all(allPhotos.map(p => pb.collection("photos").delete(p.id)));
     await pb.collection("cats").delete(cat.id);
     router.push("/");
   }
