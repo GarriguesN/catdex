@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { getPocketBase } from "@/lib/pocketbase";
 import { Sheet } from "@/components/ui/Sheet";
@@ -32,7 +32,7 @@ export function EditProfileSheet({
   const shownAvatar = avatarPreview || currentAvatar;
   const initial = (shownName[0] || user?.email?.[0] || "?").toUpperCase();
 
-  function pickAvatar(e: ChangeEvent<HTMLInputElement>) {
+  function pickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
