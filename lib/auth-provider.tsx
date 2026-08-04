@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { getPocketBase } from "@/lib/pocketbase";
 import type PocketBase from "pocketbase";
 
@@ -12,7 +12,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({ pb: null as any, user: null, loading: true });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     pb: getPocketBase(),
     user: null,
